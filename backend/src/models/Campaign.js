@@ -86,6 +86,14 @@ const campaignSchema = new mongoose.Schema({
     templateData: {
       type: mongoose.Schema.Types.Mixed,
       default: {}
+    },
+    enableListUnsubscribe: {
+      type: Boolean,
+      default: false
+    },
+    unsubscribeUrl: {
+      type: String,
+      trim: true
     }
   },
   schedule: {

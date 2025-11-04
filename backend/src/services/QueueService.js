@@ -140,7 +140,7 @@ class QueueService {
       }
 
       // Safety: skip if campaign is not running
-      const campaignDoc = await Campaign.findById(campaignId).select('status pausedAt');
+      const campaignDoc = await Campaign.findById(campaignId).select('status pausedAt configuration.enableListUnsubscribe configuration.unsubscribeUrl');
       if (!campaignDoc || campaignDoc.status !== 'running') {
         logger.warn('⚠️  Skipping job because campaign is not running', {
           campaign: campaignId,
@@ -187,7 +187,9 @@ class QueueService {
         to: recipient.email,
         from: sender.email,
         templateName: templateName,
-        templateData: templateData
+        templateData: templateData,
+        enableListUnsubscribe: campaignDoc.configuration?.enableListUnsubscribe || false,
+        unsubscribeUrl: campaignDoc.configuration?.unsubscribeUrl || null
       });
 
       const processingTime = Date.now() - startTime;

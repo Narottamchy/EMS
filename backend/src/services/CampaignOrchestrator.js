@@ -531,13 +531,25 @@ class CampaignOrchestrator {
       campaign.pausedAt = null;
       await campaign.save();
 
-      // DO NOT resume the global queue - that was the problem
-      // The queue should always be running for all campaigns
-      
+      // Initialize campaign in memory
       this.activeCampaigns.set(campaignId.toString(), {
         id: campaignId,
         status: 'running',
         resumedAt: new Date()
+      });
+
+      // Safety: purge any existing queued/delayed jobs for this campaign
+      // This ensures we don't send stale emails from when it was paused
+      await QueueService.removeCampaignJobs(campaignId);
+
+      // Resume using existing plan if available, otherwise generate new plan
+      await this.resumeCampaignWithExistingPlan(campaignId).catch(error => {
+        logger.error('❌ Campaign resume failed:', error);
+        Campaign.findByIdAndUpdate(campaignId, {
+          status: 'failed',
+          failedAt: new Date(),
+          errorMessage: error.message
+        });
       });
 
       logger.info('▶️  Campaign resumed', { campaignId });
@@ -546,6 +558,65 @@ class CampaignOrchestrator {
 
     } catch (error) {
       logger.error('❌ Failed to resume campaign:', error);
+      throw error;
+    }
+  }
+
+  async resumeCampaignWithExistingPlan(campaignId) {
+    try {
+      const campaign = await Campaign.findById(campaignId);
+      
+      if (!campaign) {
+        throw new Error('Campaign not found');
+      }
+
+      // Check if campaign has an existing plan for current day
+      const currentDay = campaign.progress.currentDay;
+      const existingPlan = campaign.campaignPlan?.dailyPlans?.find(plan => plan.day === currentDay);
+
+      if (existingPlan) {
+        logger.info('📋 Resuming campaign with existing plan', {
+          campaignId,
+          currentDay,
+          totalEmails: existingPlan.totalEmails
+        });
+
+        // Get email list and filter out already sent emails
+        const emailList = await this.getEmailList();
+        const allSentEmails = await SentEmail.find({})
+          .select('recipient.email');
+        const sentEmailSet = new Set(allSentEmails.map(e => e.recipient.email));
+        const unsubscribedList = await this.getUnsubscribedList();
+        const unsubscribedSet = new Set(unsubscribedList);
+
+        const recipientsToSend = emailList.filter(email => 
+          !sentEmailSet.has(email) && !unsubscribedSet.has(email)
+        );
+
+        if (recipientsToSend.length === 0) {
+          logger.warn('⚠️ No recipients to send to on resume');
+          return;
+        }
+
+        // Schedule emails using the existing plan structure
+        await this.scheduleEmails(campaign, existingPlan, recipientsToSend);
+
+        logger.info('✅ Campaign resumed with existing plan', {
+          campaignId,
+          emailsScheduled: existingPlan.totalEmails,
+          recipientsUsed: recipientsToSend.length
+        });
+      } else {
+        // No existing plan, generate a new one
+        logger.info('📋 No existing plan found, generating new plan', {
+          campaignId,
+          currentDay
+        });
+        await this.processCampaign(campaignId);
+      }
+
+    } catch (error) {
+      logger.error('❌ Failed to resume campaign with existing plan:', error);
       throw error;
     }
   }

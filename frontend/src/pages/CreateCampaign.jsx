@@ -23,6 +23,8 @@ const CreateCampaign = () => {
       baseDailyTotal: 4000,
       maxEmailPercentage: 35,
       randomizationIntensity: 0.7,
+      enableListUnsubscribe: false,
+      unsubscribeUrl: '',
     },
   });
 
@@ -143,14 +145,14 @@ const CreateCampaign = () => {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     if (name.startsWith('config.')) {
       const configKey = name.split('.')[1];
       setFormData({
         ...formData,
         configuration: {
           ...formData.configuration,
-          [configKey]: value,
+          [configKey]: type === 'checkbox' ? checked : value,
         },
       });
     } else {
@@ -517,6 +519,106 @@ const CreateCampaign = () => {
                 />
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* List-Unsubscribe Configuration */}
+        <div className="card">
+          <h2 className="text-xl font-semibold text-foreground mb-4">Email Compliance Settings</h2>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-4 bg-white/5 rounded-xl border border-white/10">
+              <input
+                type="checkbox"
+                id="enableListUnsubscribe"
+                checked={formData.configuration.enableListUnsubscribe || false}
+                onChange={(e) => {
+                  setFormData({
+                    ...formData,
+                    configuration: {
+                      ...formData.configuration,
+                      enableListUnsubscribe: e.target.checked,
+                      unsubscribeUrl: e.target.checked 
+                        ? (formData.configuration.unsubscribeUrl || 'https://lpv4lifyk9.execute-api.eu-west-1.amazonaws.com/Unsubscribefunction?email={{recipientEmail}}')
+                        : formData.configuration.unsubscribeUrl
+                    }
+                  });
+                }}
+                className="mt-1 rounded"
+              />
+              <div className="flex-1">
+                <label htmlFor="enableListUnsubscribe" className="label cursor-pointer">
+                  Enable List-Unsubscribe Headers
+                </label>
+                <p className="text-sm text-muted mt-1">
+                  Add List-Unsubscribe headers to emails for better inbox compliance and user experience. 
+                  This allows email clients to show an unsubscribe button directly in the email header.
+                </p>
+              </div>
+            </div>
+
+            {formData.configuration.enableListUnsubscribe && (
+              <div className="form-group">
+                <label htmlFor="unsubscribeUrl" className="label">
+                  Unsubscribe URL *
+                </label>
+                <p className="text-sm text-muted mb-2">
+                  Enter the unsubscribe URL. Use <code className="text-white bg-white/10 px-1 rounded">{'{{recipientEmail}}'}</code> to automatically replace with recipient's email.
+                </p>
+                <input
+                  type="url"
+                  id="unsubscribeUrl"
+                  name="config.unsubscribeUrl"
+                  required={formData.configuration.enableListUnsubscribe}
+                  value={formData.configuration.unsubscribeUrl || ''}
+                  onChange={handleChange}
+                  className="input"
+                  placeholder="https://lpv4lifyk9.execute-api.eu-west-1.amazonaws.com/Unsubscribefunction?email={{recipientEmail}}"
+                />
+                
+                {/* Quick Suggestions */}
+                <div className="mt-3">
+                  <label className="label text-sm">Quick Suggestions</label>
+                  <div className="grid grid-cols-1 gap-2">
+                    {[
+                      {
+                        value: 'https://lpv4lifyk9.execute-api.eu-west-1.amazonaws.com/Unsubscribefunction?email={{recipientEmail}}',
+                        description: 'Default unsubscribe API with dynamic email'
+                      },
+                      {
+                        value: 'https://example.com/unsubscribe?email={{recipientEmail}}',
+                        description: 'Custom unsubscribe URL with email parameter'
+                      }
+                    ].map((suggestion, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => {
+                          setFormData({
+                            ...formData,
+                            configuration: {
+                              ...formData.configuration,
+                              unsubscribeUrl: suggestion.value
+                            }
+                          });
+                        }}
+                        className={`p-3 text-left border rounded-xl transition-all ${
+                          formData.configuration.unsubscribeUrl === suggestion.value
+                            ? 'border-white/30 bg-white/10 text-white shadow-soft'
+                            : 'border-white/10 hover:border-white/20 hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="text-sm font-mono text-muted mb-1 break-all">
+                          {suggestion.value}
+                        </div>
+                        <div className="text-xs text-muted">
+                          {suggestion.description}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

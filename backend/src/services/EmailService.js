@@ -107,9 +107,20 @@ class EmailService {
     }
   }
 
-  async sendEmailWithTemplate({ to, from, templateName, templateData = {} }) {
+  async sendEmailWithTemplate({ to, from, templateName, templateData = {}, enableListUnsubscribe = false, unsubscribeUrl = null }) {
     try {
       await this.applyRateLimit();
+      
+      // If List-Unsubscribe is enabled, use raw email with headers
+      if (enableListUnsubscribe && unsubscribeUrl) {
+        return await this.sendRawEmailWithListUnsubscribe({
+          to,
+          from,
+          templateName,
+          templateData,
+          unsubscribeUrl
+        });
+      }
       
       const params = {
         Source: from,
@@ -134,6 +145,72 @@ class EmailService {
 
     } catch (error) {
       logger.error('❌ Failed to send email with SES template:', {
+        to,
+        from,
+        template: templateName,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  async sendRawEmailWithListUnsubscribe({ to, from, templateName, templateData = {}, unsubscribeUrl }) {
+    try {
+      await this.applyRateLimit();
+      
+      // Step 1: Fetch the SES template
+      const SESTemplateService = require('./SESTemplateService');
+      const template = await SESTemplateService.getTemplate(templateName);
+      let htmlBody = template.Template.HtmlPart;
+      let subject = template.Template.SubjectPart;
+      
+      // Step 2: Replace template variables in HTML and subject
+      Object.keys(templateData).forEach(key => {
+        const regex = new RegExp(`{{${key}}}`, 'g');
+        htmlBody = htmlBody.replace(regex, templateData[key]);
+        subject = subject.replace(regex, templateData[key]);
+      });
+      
+      // Step 3: Replace {{recipientEmail}} in unsubscribe URL if present
+      const finalUnsubscribeUrl = unsubscribeUrl.replace(/{{recipientEmail}}/g, to);
+      const mailtoUnsubscribe = `mailto:unsubscribe@${from.split('@')[1]}?subject=Unsubscribe`;
+      
+      // Step 4: Construct the raw email with custom headers
+      const rawMessage = `From: ${from}
+To: ${to}
+Subject: ${subject}
+MIME-Version: 1.0
+Content-Type: text/html; charset=UTF-8
+List-Unsubscribe: <${finalUnsubscribeUrl}>, <${mailtoUnsubscribe}>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+
+${htmlBody}
+`;
+
+      // Step 5: Send via SendRawEmail
+      const params = {
+        RawMessage: {
+          Data: Buffer.from(rawMessage, 'utf-8')
+        },
+        Source: from,
+        Destinations: [to],
+        ConfigurationSetName: process.env.SES_CONFIGURATION_SET || undefined
+      };
+
+      const result = await this.ses.sendRawEmail(params).promise();
+
+      logger.debug('📧 Email sent with List-Unsubscribe headers', {
+        to,
+        from,
+        template: templateName,
+        messageId: result.MessageId,
+        unsubscribeUrl: finalUnsubscribeUrl
+      });
+
+      return result;
+
+    } catch (error) {
+      logger.error('❌ Failed to send raw email with List-Unsubscribe:', {
         to,
         from,
         template: templateName,
