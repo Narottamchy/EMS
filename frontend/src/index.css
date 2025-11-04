@@ -1,0 +1,205 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  html {
+    background: #000000;
+    overscroll-behavior: none;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+    background-color: #000000;
+    min-height: 100vh;
+    overscroll-behavior: none;
+  }
+  
+  #root {
+    background: #000000;
+    min-height: 100vh;
+  }
+  
+  /* Premium scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted/30 rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted/50;
+  }
+}
+
+@layer components {
+  /* Premium Button System */
+  .btn {
+    @apply px-4 py-2 rounded-xl font-medium transition-all duration-300 inline-flex items-center justify-center;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  
+  .btn-sm {
+    @apply px-4 py-2 text-xs;
+  }
+  
+  .btn-lg {
+    @apply px-8 py-4 text-base;
+  }
+  
+  .btn-primary {
+    @apply bg-white/10 text-white hover:bg-white/20 border border-white/20;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+  
+  .btn-secondary {
+    @apply bg-white/5 text-white border border-white/10 hover:bg-white/10 hover:border-white/20;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  
+  .btn-danger {
+    @apply bg-red-500/20 text-red-200 hover:bg-red-500/30 border border-red-500/30;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+  
+  .btn-success {
+    @apply bg-white/10 text-white hover:bg-white/20 border border-white/20;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+  
+  .btn-warning {
+    @apply bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-500/20 
+           shadow-soft hover:shadow-medium;
+  }
+  
+  .btn-info {
+    @apply bg-secondary text-white hover:bg-secondary/90 focus:ring-secondary/20 
+           shadow-soft hover:shadow-medium;
+  }
+  
+  .btn-ghost {
+    @apply bg-transparent text-white hover:bg-white/5;
+  }
+  
+  /* Premium Card System */
+  .card {
+    @apply bg-card rounded-2xl p-6 border;
+    border-color: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+  
+  .card-hover {
+    @apply transition-all duration-300 hover:bg-card-hover hover:shadow-large hover:border-white/20;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+  
+  /* Premium Form Elements */
+  .input {
+    @apply w-full px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-white placeholder-muted focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30 transition-all;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  
+  .input-sm {
+    @apply px-3 py-2 text-sm;
+  }
+  
+  .input-lg {
+    @apply px-5 py-4 text-base;
+  }
+  
+  .textarea {
+    @apply w-full px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-white placeholder-muted focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30 transition-all;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    resize: vertical;
+  }
+  
+  .select {
+    @apply w-full px-4 py-3 border border-border rounded-xl 
+           focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary 
+           transition-all duration-200 bg-white text-foreground;
+  }
+  
+  .label {
+    @apply block text-sm font-medium text-white mb-2;
+  }
+  
+  .label-required::after {
+    content: ' *';
+    @apply text-red-500;
+  }
+  
+  /* Premium Badge System */
+  .badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium;
+  }
+  
+  .badge-success {
+    @apply bg-white/10 text-white border border-white/20;
+  }
+  
+  .badge-warning {
+    @apply bg-amber-500/20 text-amber-200 border border-amber-500/30;
+  }
+  
+  .badge-danger {
+    @apply bg-red-500/20 text-red-200 border border-red-500/30;
+  }
+  
+  .badge-info {
+    @apply bg-white/10 text-white border border-white/20;
+  }
+  
+  .badge-gray {
+    @apply bg-white/5 text-muted border border-white/10;
+  }
+  
+  /* Utility Classes */
+  .btn-group {
+    @apply flex gap-2;
+  }
+  
+  .form-group {
+    @apply space-y-2;
+  }
+  
+  .form-row {
+    @apply grid grid-cols-1 md:grid-cols-2 gap-6;
+  }
+  
+  /* Premium Effects */
+  .glass {
+    @apply bg-white/80 backdrop-blur-lg border border-white/20 shadow-large;
+  }
+  
+  .hover-lift {
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-medium;
+  }
+}

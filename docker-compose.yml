@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # Redis Cache & Queue
+  redis:
+    image: redis:7-alpine
+    container_name: email-campaign-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - email-campaign-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: email-campaign-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    ports:
+      - "5001:5001"
+    depends_on:
+      - redis
+    volumes:
+      - ./backend/logs:/app/logs
+    networks:
+      - email-campaign-network
+
+  # Frontend Dashboard
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:5001/api/v1
+        VITE_SOCKET_URL: http://localhost:5001
+    container_name: email-campaign-frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:5001/api/v1
+      VITE_SOCKET_URL: http://localhost:5001
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - email-campaign-network
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  email-campaign-network:
+    driver: bridge
