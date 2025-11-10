@@ -830,7 +830,9 @@ class CampaignOrchestrator {
     try {
       logger.info(`🔍 Getting current execution plan for campaign: ${campaignId}`);
       
-      const campaign = await Campaign.findById(campaignId).select('campaignPlan progress status');
+      const campaign = await Campaign.findById(campaignId)
+        .select('campaignPlan progress status configuration')
+        .populate('configuration.customEmailListId');
       
       if (!campaign) {
         logger.error(`❌ Campaign not found: ${campaignId}`);
@@ -849,7 +851,9 @@ class CampaignOrchestrator {
           logger.info(`✅ Campaign plan regenerated successfully`);
           
           // Fetch the campaign again after processing
-          const updatedCampaign = await Campaign.findById(campaignId).select('campaignPlan progress status');
+          const updatedCampaign = await Campaign.findById(campaignId)
+            .select('campaignPlan progress status configuration')
+            .populate('configuration.customEmailListId');
           if (updatedCampaign && updatedCampaign.campaignPlan) {
             logger.info(`✅ Found regenerated campaign plan`);
             // Continue with the updated campaign
@@ -957,25 +961,58 @@ class CampaignOrchestrator {
         }
       }
 
-      currentExecution.totalRemaining = currentExecution.totalScheduled - currentExecution.totalCompleted;
+      // Get actual sent count for this campaign to show real completion
+      const SentEmail = require('../models/SentEmail');
+      const actualSentCount = await SentEmail.countDocuments({ campaignId: campaignId });
+      
+      // Update execution stats with actual sent emails
+      currentExecution.totalCompleted = actualSentCount;
+      currentExecution.totalRemaining = currentExecution.totalScheduled - actualSentCount;
       
       // Sort hours
       currentExecution.completedHours.sort((a, b) => a.hour - b.hour);
       currentExecution.upcomingHours.sort((a, b) => a.hour - b.hour);
 
-      // Get current count of already sent emails GLOBALLY across all campaigns
-      const SentEmail = require('../models/SentEmail');
-      const allSentEmails = await SentEmail.find({}).select('recipient.email');
-      const uniqueSentEmails = new Set(allSentEmails.map(e => e.recipient.email));
-      const alreadySentGlobal = uniqueSentEmails.size;
+      // Get CAMPAIGN-SPECIFIC email list statistics
       
-      // Get updated email list stats with GLOBAL sent count
+      // Get the email list for this campaign
+      const campaignEmailList = await this.getEmailListForCampaign(campaign);
+      const campaignEmailSet = new Set(campaignEmailList.map(e => e.toLowerCase().trim()));
+      
+      // Get emails sent by THIS campaign only
+      const campaignSentEmails = await SentEmail.find({ 
+        campaignId: campaignId 
+      }).select('recipient.email');
+      const sentByCampaignSet = new Set(campaignSentEmails.map(e => e.recipient.email.toLowerCase().trim()));
+      
+      // Get unsubscribed emails that exist in THIS campaign's email list
+      const unsubscribedList = await this.getUnsubscribedList();
+      const unsubscribedInCampaignList = unsubscribedList.filter(email => 
+        campaignEmailSet.has(email.toLowerCase().trim())
+      );
+      
+      // Calculate campaign-specific statistics
+      const totalEmails = campaignEmailList.length;
+      const alreadySent = sentByCampaignSet.size;
+      const unsubscribed = unsubscribedInCampaignList.length;
+      const available = Math.max(0, totalEmails - alreadySent - unsubscribed);
+      
+      // Log for debugging
+      logger.info('📊 Campaign-specific email list statistics', {
+        campaignId,
+        emailListSource: campaign.configuration.emailListSource,
+        totalEmails,
+        alreadySent,
+        unsubscribed,
+        available,
+        calculation: `${totalEmails} - ${alreadySent} - ${unsubscribed} = ${available}`
+      });
+      
       const emailListStats = {
-        ...campaign.campaignPlan.emailListStats,
-        alreadySent: alreadySentGlobal,
-        availableToSend: Math.max(0, (campaign.campaignPlan.emailListStats.totalEmails || 0) - alreadySentGlobal - (campaign.campaignPlan.emailListStats.unsubscribed || 0)),
-        alreadySentGlobal: alreadySentGlobal,
-        availableToSendGlobal: Math.max(0, (campaign.campaignPlan.emailListStats.totalEmails || 0) - alreadySentGlobal - (campaign.campaignPlan.emailListStats.unsubscribed || 0))
+        totalEmails,
+        alreadySent,
+        unsubscribed,
+        availableToSend: available
       };
 
       return {
