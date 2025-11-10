@@ -23,7 +23,7 @@ const Layout = () => {
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Campaigns', href: '/campaigns', icon: Mail },
     { name: 'Templates', href: '/templates', icon: FileText },
-    { name: 'Email List', href: '/emails', icon: Users },
+    // { name: 'Email List', href: '/emails', icon: Users },
     { name: 'Email Lists', href: '/email-lists', icon: List },
     { name: 'Unsubscribed', href: '/unsubscribed', icon: UserX },
   ];

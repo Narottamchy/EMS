@@ -90,7 +90,7 @@ function App() {
               <Route path="templates/new" element={<CreateTemplate />} />
               <Route path="templates/:name" element={<ViewTemplate />} />
               <Route path="templates/:name/edit" element={<EditTemplate />} />
-              <Route path="emails" element={<EmailList />} />
+              {/* <Route path="emails" element={<EmailList />} /> */}
               <Route path="email-lists" element={<EmailLists />} />
               <Route path="unsubscribed" element={<UnsubscribedUsers />} />
         </Route>
