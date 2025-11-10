@@ -94,6 +94,25 @@ const campaignSchema = new mongoose.Schema({
     unsubscribeUrl: {
       type: String,
       trim: true
+    },
+    emailListSource: {
+      type: String,
+      enum: ['global', 'custom'],
+      default: 'global'
+    },
+    customEmailListId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'EmailList'
+    },
+    warmupMode: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      currentIndex: {
+        type: Number,
+        default: 0
+      }
     }
   },
   schedule: {

@@ -91,7 +91,7 @@ class CampaignOrchestrator {
       
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      const campaign = await Campaign.findById(campaignId);
+      const campaign = await Campaign.findById(campaignId).populate('configuration.customEmailListId');
       
       if (!campaign) {
         throw new Error('Campaign not found');
@@ -101,11 +101,17 @@ class CampaignOrchestrator {
         campaignId,
         name: campaign.name,
         status: campaign.status,
-        currentDay: campaign.progress.currentDay
+        currentDay: campaign.progress.currentDay,
+        emailListSource: campaign.configuration.emailListSource,
+        warmupMode: campaign.configuration.warmupMode?.enabled
       });
 
-      const emailList = await this.getEmailList();
-      logger.info('📧 Email list fetched', { totalEmails: emailList.length });
+      // Get email list based on source (global or custom)
+      const emailList = await this.getEmailListForCampaign(campaign);
+      logger.info('📧 Email list fetched', { 
+        totalEmails: emailList.length,
+        source: campaign.configuration.emailListSource 
+      });
       
       if (emailList.length === 0) {
         throw new Error('No emails found in S3 email list');
@@ -119,16 +125,22 @@ class CampaignOrchestrator {
       const unsubscribedList = await this.getUnsubscribedList();
       const unsubscribedSet = new Set(unsubscribedList);
 
-      const recipientsToSend = emailList.filter(email => 
+      let recipientsToSend = emailList.filter(email => 
         !sentEmailSet.has(email) && !unsubscribedSet.has(email)
       );
+
+      // Apply warmup mode if enabled
+      if (campaign.configuration.warmupMode?.enabled) {
+        recipientsToSend = await this.applyWarmupMode(campaign, recipientsToSend);
+      }
 
       logger.info('📊 Campaign processing summary', {
         campaignId,
         totalRecipients: emailList.length,
         alreadySent: sentEmailSet.size,
         unsubscribed: unsubscribedSet.size,
-        toSend: recipientsToSend.length
+        toSend: recipientsToSend.length,
+        warmupMode: campaign.configuration.warmupMode?.enabled
       });
 
       if (recipientsToSend.length === 0) {
@@ -564,7 +576,7 @@ class CampaignOrchestrator {
 
   async resumeCampaignWithExistingPlan(campaignId) {
     try {
-      const campaign = await Campaign.findById(campaignId);
+      const campaign = await Campaign.findById(campaignId).populate('configuration.customEmailListId');
       
       if (!campaign) {
         throw new Error('Campaign not found');
@@ -581,8 +593,8 @@ class CampaignOrchestrator {
           totalEmails: existingPlan.totalEmails
         });
 
-        // Get email list and filter out already sent emails
-        const emailList = await this.getEmailList();
+        // Get email list based on source (global or custom)
+        const emailList = await this.getEmailListForCampaign(campaign);
         const allSentEmails = await SentEmail.find({})
           .select('recipient.email');
         const sentEmailSet = new Set(allSentEmails.map(e => e.recipient.email));
@@ -979,6 +991,137 @@ class CampaignOrchestrator {
       logger.error('❌ Failed to get current execution plan:', error);
       throw error;
     }
+  }
+
+  async getEmailListForCampaign(campaign) {
+    try {
+      const config = campaign.configuration;
+      
+      // If using custom email list
+      if (config.emailListSource === 'custom' && config.customEmailListId) {
+        const EmailList = require('../models/EmailList');
+        const emailList = await EmailList.findById(config.customEmailListId);
+        
+        if (!emailList || !emailList.isActive) {
+          logger.warn('⚠️ Custom email list not found or inactive, falling back to global list');
+          return await this.getEmailList();
+        }
+        
+        // Fetch emails from S3 using custom list's key
+        const params = {
+          Bucket: process.env.S3_BUCKET,
+          Key: emailList.s3Key
+        };
+        
+        logger.info('📧 Fetching custom email list from S3', {
+          emailListId: emailList._id,
+          name: emailList.name,
+          s3Key: emailList.s3Key
+        });
+        
+        const stream = this.s3.getObject(params).createReadStream();
+        const emails = [];
+        
+        return new Promise((resolve, reject) => {
+          stream
+            .pipe(csv())
+            .on('data', (row) => {
+              const email = row.email || row.Email || row.EMAIL;
+              if (email) {
+                emails.push(email.toLowerCase().trim());
+              }
+            })
+            .on('end', () => {
+              const uniqueEmails = [...new Set(emails)];
+              logger.info('📧 Custom email list loaded', {
+                totalEmails: uniqueEmails.length,
+                listName: emailList.name
+              });
+              
+              // Update last used timestamp
+              EmailList.findByIdAndUpdate(emailList._id, {
+                'metadata.lastUsedAt': new Date(),
+                $inc: { 'metadata.usageCount': 1 }
+              }).catch(err => logger.error('Failed to update email list metadata:', err));
+              
+              resolve(uniqueEmails);
+            })
+            .on('error', (error) => {
+              logger.error('❌ Failed to read custom email list from S3:', error);
+              reject(error);
+            });
+        });
+      }
+      
+      // Fall back to global email list
+      return await this.getEmailList();
+      
+    } catch (error) {
+      logger.error('❌ Failed to get email list for campaign:', error);
+      throw error;
+    }
+  }
+
+  async applyWarmupMode(campaign, recipients) {
+    try {
+      const warmupConfig = campaign.configuration.warmupMode;
+      
+      if (!warmupConfig || !warmupConfig.enabled) {
+        return recipients;
+      }
+      
+      const currentIndex = warmupConfig.currentIndex || 0;
+      const dailyPlanTotal = this.calculateDailyTotal(campaign);
+      
+      logger.info('🔥 Applying warmup mode', {
+        campaignId: campaign._id,
+        currentIndex,
+        totalRecipients: recipients.length,
+        dailyPlanTotal
+      });
+      
+      // If we've reached the end of the list, restart from beginning
+      if (currentIndex >= recipients.length) {
+        logger.info('🔄 Warmup mode: Restarting from beginning of list');
+        await Campaign.findByIdAndUpdate(campaign._id, {
+          'configuration.warmupMode.currentIndex': 0
+        });
+        return recipients.slice(0, dailyPlanTotal);
+      }
+      
+      // Get the next batch of recipients
+      const endIndex = Math.min(currentIndex + dailyPlanTotal, recipients.length);
+      const selectedRecipients = recipients.slice(currentIndex, endIndex);
+      
+      // Update the current index for next run
+      await Campaign.findByIdAndUpdate(campaign._id, {
+        'configuration.warmupMode.currentIndex': endIndex
+      });
+      
+      logger.info('🔥 Warmup mode applied', {
+        campaignId: campaign._id,
+        selectedCount: selectedRecipients.length,
+        nextIndex: endIndex,
+        willRestart: endIndex >= recipients.length
+      });
+      
+      return selectedRecipients;
+      
+    } catch (error) {
+      logger.error('❌ Failed to apply warmup mode:', error);
+      // Return all recipients if warmup mode fails
+      return recipients;
+    }
+  }
+
+  calculateDailyTotal(campaign) {
+    const config = campaign.configuration;
+    const day = campaign.progress.currentDay;
+    const { baseDailyTotal, quotaDays = 30, targetSum = 450000 } = config;
+    
+    // Use the same logic as generateDailyTotal
+    const { generateDailyTotal } = require('../utils/randomization');
+    return generateDailyTotal(baseDailyTotal, day, quotaDays, targetSum);
   }
 }
 

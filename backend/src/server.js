@@ -16,6 +16,7 @@ const authRoutes = require('./routes/auth.routes');
 const campaignRoutes = require('./routes/campaign.routes');
 const templateRoutes = require('./routes/template.routes');
 const emailRoutes = require('./routes/email.routes');
+const emailListRoutes = require('./routes/emailList.routes');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -60,6 +61,7 @@ app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(`${API_PREFIX}/campaigns`, campaignRoutes);
 app.use(`${API_PREFIX}/templates`, templateRoutes);
 app.use(`${API_PREFIX}/emails`, emailRoutes);
+app.use(`${API_PREFIX}/email-lists`, emailListRoutes);
 
 app.get('/', (req, res) => {
   res.json({

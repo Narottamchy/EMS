@@ -125,4 +125,21 @@ export const emailAPI = {
   getVerifiedDomains: () => api.get('/emails/verified-domains'),
 };
 
+// Email List API
+export const emailListAPI = {
+  getAll: (params) => api.get('/email-lists', { params }),
+  getById: (id) => api.get(`/email-lists/${id}`),
+  getPreview: (id, params) => api.get(`/email-lists/${id}/preview`, { params }),
+  upload: (formData) => {
+    return axios.post(`${API_BASE_URL}/email-lists/upload`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+  },
+  update: (id, data) => api.put(`/email-lists/${id}`, data),
+  delete: (id) => api.delete(`/email-lists/${id}`),
+};
+
 export default api;

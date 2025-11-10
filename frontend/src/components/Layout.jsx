@@ -7,7 +7,8 @@ import {
   Menu,
   X,
   Users,
-  UserX
+  UserX,
+  List
 } from 'lucide-react';
 import { useState } from 'react';
 import useAuthStore from '../store/authStore';
@@ -23,6 +24,7 @@ const Layout = () => {
     { name: 'Campaigns', href: '/campaigns', icon: Mail },
     { name: 'Templates', href: '/templates', icon: FileText },
     { name: 'Email List', href: '/emails', icon: Users },
+    { name: 'Email Lists', href: '/email-lists', icon: List },
     { name: 'Unsubscribed', href: '/unsubscribed', icon: UserX },
   ];
 

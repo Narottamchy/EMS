@@ -16,6 +16,7 @@ import CreateTemplate from './pages/CreateTemplate';
 import ViewTemplate from './pages/ViewTemplate';
 import EditTemplate from './pages/EditTemplate';
 import EmailList from './pages/EmailList';
+import EmailLists from './pages/EmailLists';
 import UnsubscribedUsers from './pages/UnsubscribedUsers';
 
 // Protected Route Component
@@ -90,6 +91,7 @@ function App() {
               <Route path="templates/:name" element={<ViewTemplate />} />
               <Route path="templates/:name/edit" element={<EditTemplate />} />
               <Route path="emails" element={<EmailList />} />
+              <Route path="email-lists" element={<EmailLists />} />
               <Route path="unsubscribed" element={<UnsubscribedUsers />} />
         </Route>
         

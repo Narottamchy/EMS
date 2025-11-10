@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import useCampaignStore from '../store/campaignStore';
-import { templateAPI, emailAPI } from '../lib/api';
+import { templateAPI, emailAPI, emailListAPI } from '../lib/api';
 import { CreateCampaignSkeleton } from '../components/SkeletonComponents';
 
 const CreateCampaign = () => {
@@ -12,6 +12,8 @@ const CreateCampaign = () => {
   const [templatesLoading, setTemplatesLoading] = useState(true);
   const [verifiedDomains, setVerifiedDomains] = useState([]);
   const [domainsLoading, setDomainsLoading] = useState(true);
+  const [emailLists, setEmailLists] = useState([]);
+  const [emailListsLoading, setEmailListsLoading] = useState(true);
   const [useCustomDomain, setUseCustomDomain] = useState({}); // Track which domain uses custom input
   const [formData, setFormData] = useState({
     name: '',
@@ -25,12 +27,19 @@ const CreateCampaign = () => {
       randomizationIntensity: 0.7,
       enableListUnsubscribe: false,
       unsubscribeUrl: '',
+      emailListSource: 'global',
+      customEmailListId: '',
+      warmupMode: {
+        enabled: false,
+        currentIndex: 0
+      }
     },
   });
 
   useEffect(() => {
     loadTemplates();
     loadVerifiedDomains();
+    loadEmailLists();
   }, []);
 
   // Debug: Watch verified domains changes
@@ -80,6 +89,19 @@ const CreateCampaign = () => {
       setVerifiedDomains([]); // Set empty array on error
     } finally {
       setDomainsLoading(false);
+    }
+  };
+
+  const loadEmailLists = async () => {
+    try {
+      setEmailListsLoading(true);
+      const response = await emailListAPI.getAll();
+      setEmailLists(response.data.emailLists || []);
+    } catch (error) {
+      console.error('Failed to load email lists:', error);
+      setEmailLists([]);
+    } finally {
+      setEmailListsLoading(false);
     }
   };
 
@@ -517,6 +539,129 @@ const CreateCampaign = () => {
                   onChange={handleChange}
                   className="input"
                 />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Email List Selection */}
+        <div className="card">
+          <h2 className="text-xl font-semibold text-foreground mb-4">Email List Configuration</h2>
+          <div className="space-y-4">
+            <div className="form-group">
+              <label className="label">Email List Source *</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setFormData({
+                    ...formData,
+                    configuration: {
+                      ...formData.configuration,
+                      emailListSource: 'global',
+                      customEmailListId: ''
+                    }
+                  })}
+                  className={`p-4 text-left border rounded-xl transition-all ${
+                    formData.configuration.emailListSource === 'global'
+                      ? 'border-white/30 bg-white/10 text-white shadow-soft'
+                      : 'border-white/10 hover:border-white/20 hover:bg-white/5'
+                  }`}
+                >
+                  <div className="font-medium mb-1">Global Email List</div>
+                  <div className="text-sm text-muted">Use the default global email list from S3</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({
+                    ...formData,
+                    configuration: {
+                      ...formData.configuration,
+                      emailListSource: 'custom'
+                    }
+                  })}
+                  className={`p-4 text-left border rounded-xl transition-all ${
+                    formData.configuration.emailListSource === 'custom'
+                      ? 'border-white/30 bg-white/10 text-white shadow-soft'
+                      : 'border-white/10 hover:border-white/20 hover:bg-white/5'
+                  }`}
+                >
+                  <div className="font-medium mb-1">Custom Email List</div>
+                  <div className="text-sm text-muted">Select from your uploaded email lists</div>
+                </button>
+              </div>
+            </div>
+
+            {formData.configuration.emailListSource === 'custom' && (
+              <div className="form-group">
+                <label htmlFor="customEmailListId" className="label">Select Email List *</label>
+                {emailListsLoading ? (
+                  <div className="text-sm text-muted">Loading email lists...</div>
+                ) : emailLists.length === 0 ? (
+                  <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                    <p className="text-sm text-yellow-200">
+                      No custom email lists available. Please upload an email list first.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/email-lists')}
+                      className="mt-2 text-sm text-yellow-200 underline hover:text-yellow-100"
+                    >
+                      Go to Email Lists
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    id="customEmailListId"
+                    value={formData.configuration.customEmailListId}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      configuration: {
+                        ...formData.configuration,
+                        customEmailListId: e.target.value
+                      }
+                    })}
+                    className="input"
+                    required={formData.configuration.emailListSource === 'custom'}
+                  >
+                    <option value="">Select an email list</option>
+                    {emailLists.map((list) => (
+                      <option key={list._id} value={list._id}>
+                        {list.name} ({list.emailCount.toLocaleString()} emails)
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
+            {/* Warmup Mode */}
+            <div className="flex items-start gap-3 p-4 bg-white/5 rounded-xl border border-white/10">
+              <input
+                type="checkbox"
+                id="warmupMode"
+                checked={formData.configuration.warmupMode?.enabled || false}
+                onChange={(e) => {
+                  setFormData({
+                    ...formData,
+                    configuration: {
+                      ...formData.configuration,
+                      warmupMode: {
+                        enabled: e.target.checked,
+                        currentIndex: 0
+                      }
+                    }
+                  });
+                }}
+                className="mt-1 rounded"
+              />
+              <div className="flex-1">
+                <label htmlFor="warmupMode" className="label cursor-pointer">
+                  Enable Warmup Mode
+                </label>
+                <p className="text-sm text-muted mt-1">
+                  Cycle through the email list continuously. When the campaign reaches the end of the list, 
+                  it will automatically restart from the beginning. Perfect for warming up domains with a limited email list.
+                </p>
               </div>
             </div>
           </div>
