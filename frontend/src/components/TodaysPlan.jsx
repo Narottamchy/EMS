@@ -104,40 +104,6 @@ const TodaysPlan = ({ campaignId }) => {
         </button>
       </div>
 
-      {/* Email List Statistics */}
-      {emailListStats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="text-center p-4 bg-white/5 rounded-lg">
-            <Users className="w-6 h-6 text-white mx-auto mb-2" />
-            <p className="text-sm text-white font-medium">Total Emails</p>
-            <p className="text-2xl font-bold text-white">
-              {emailListStats.totalEmails?.toLocaleString() || 0}
-            </p>
-          </div>
-          <div className="text-center p-4 bg-white/5 rounded-lg">
-            <Mail className="w-6 h-6 text-white mx-auto mb-2" />
-            <p className="text-sm text-white font-medium">Available</p>
-            <p className="text-2xl font-bold text-white">
-              {emailListStats.availableToSend?.toLocaleString() || 0}
-            </p>
-          </div>
-          <div className="text-center p-4 bg-white/5 rounded-lg">
-            <Mail className="w-6 h-6 text-white mx-auto mb-2" />
-            <p className="text-sm text-white font-medium">Already Sent</p>
-            <p className="text-2xl font-bold text-white">
-              {emailListStats.alreadySent?.toLocaleString() || 0}
-            </p>
-          </div>
-          <div className="text-center p-4 bg-white/5 rounded-lg">
-            <Mail className="w-6 h-6 text-red-600 mx-auto mb-2" />
-            <p className="text-sm text-red-600 font-medium">Unsubscribed</p>
-            <p className="text-2xl font-bold text-red-700">
-              {emailListStats.unsubscribed?.toLocaleString() || 0}
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Today's Plan Details */}
       {todaysPlan ? (
         <div className="space-y-4">
