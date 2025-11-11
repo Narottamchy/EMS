@@ -3,7 +3,6 @@ const SESTemplateService = require('../services/SESTemplateService');
 const CampaignOrchestrator = require('../services/CampaignOrchestrator');
 const AnalyticsService = require('../services/AnalyticsService');
 const QueueService = require('../services/QueueService');
-const DailyScheduler = require('../services/DailyScheduler');
 const SystemLog = require('../models/SystemLog');
 const logger = require('../utils/logger');
 
@@ -1208,77 +1207,6 @@ exports.saveTemplateData = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to save template data',
-      error: error.message
-    });
-  }
-};
-
-// Manual day transition (for testing or manual intervention)
-exports.transitionToNextDay = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const campaign = await Campaign.findById(id);
-    
-    if (!campaign) {
-      return res.status(404).json({
-        success: false,
-        message: 'Campaign not found'
-      });
-    }
-
-    if (campaign.status !== 'running') {
-      return res.status(400).json({
-        success: false,
-        message: 'Campaign must be running to transition to next day'
-      });
-    }
-
-    logger.info('🔧 Manual day transition requested', {
-      campaignId: id,
-      currentDay: campaign.progress.currentDay,
-      requestedBy: req.userId
-    });
-
-    await DailyScheduler.manualTransition(id);
-
-    const updatedCampaign = await Campaign.findById(id);
-
-    res.json({
-      success: true,
-      message: 'Campaign transitioned to next day successfully',
-      data: {
-        campaign: updatedCampaign,
-        previousDay: campaign.progress.currentDay,
-        currentDay: updatedCampaign.progress.currentDay
-      }
-    });
-
-  } catch (error) {
-    logger.error('❌ Manual day transition error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to transition campaign to next day',
-      error: error.message
-    });
-  }
-};
-
-// Get scheduler status
-exports.getSchedulerStatus = async (req, res) => {
-  try {
-    const status = DailyScheduler.getStatus();
-    
-    res.json({
-      success: true,
-      data: status
-    });
-
-  } catch (error) {
-    logger.error('❌ Get scheduler status error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get scheduler status',
       error: error.message
     });
   }

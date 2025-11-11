@@ -51,8 +51,4 @@ router.post('/:campaignId/senders', authorize('admin', 'manager'), campaignContr
 router.put('/:campaignId/senders/:senderEmailId', authorize('admin', 'manager'), campaignController.updateSenderEmail);
 router.delete('/:campaignId/senders/:senderEmailId', authorize('admin', 'manager'), campaignController.removeSenderEmail);
 
-// Day transition management
-router.post('/:id/transition-day', authorize('admin', 'manager'), campaignController.transitionToNextDay);
-router.get('/scheduler/status', authorize('admin'), campaignController.getSchedulerStatus);
-
 module.exports = router;

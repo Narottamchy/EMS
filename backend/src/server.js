@@ -10,7 +10,7 @@ const { Server } = require('socket.io');
 
 const connectDB = require('./config/database');
 const QueueService = require('./services/QueueService');
-const DailyScheduler = require('./services/DailyScheduler');
+const DayTransitionScheduler = require('./services/DayTransitionScheduler');
 const logger = require('./utils/logger');
 const errorHandler = require('./middleware/errorHandler');
 const authRoutes = require('./routes/auth.routes');
@@ -109,9 +109,8 @@ const startServer = async () => {
     QueueService.setSocketIO(io);
     await QueueService.initialize();
 
-    // Initialize Daily Scheduler for automatic day transitions
-    DailyScheduler.initialize();
-    logger.info('✅ Daily scheduler initialized');
+    // Initialize Day Transition Scheduler
+    DayTransitionScheduler.initialize();
 
     // Create default admin user if not exists
     const User = require('./models/User');
@@ -151,8 +150,8 @@ const gracefulShutdown = async () => {
       logger.info('HTTP server closed');
     });
 
-    // Stop daily scheduler
-    DailyScheduler.stop();
+    // Stop day transition scheduler
+    DayTransitionScheduler.stop();
 
     await QueueService.shutdown();
 

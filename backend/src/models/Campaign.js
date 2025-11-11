@@ -170,6 +170,12 @@ const campaignSchema = new mongoose.Schema({
     },
     lastSentAt: {
       type: Date
+    },
+    lastDayTransitionAt: {
+      type: Date
+    },
+    startedOnUTCDay: {
+      type: String
     }
   },
   campaignPlan: {

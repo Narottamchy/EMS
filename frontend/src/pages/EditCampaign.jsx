@@ -478,18 +478,18 @@ const EditCampaign = () => {
                                 handleDomainChange(domainIndex, e.target.value);
                               }
                             }}
-                            className="w-full px-4 py-3 bg-black text-white border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30 transition-all"
+                            className="dark-select"
                             required
                           >
-                            <option value="" className="bg-black text-white">
+                            <option value="">
                               Select verified domain from SES
                             </option>
                             {verifiedDomains.map((domain) => (
-                              <option key={domain} value={domain} className="bg-black text-white">
+                              <option key={domain} value={domain}>
                                 {domain}
                               </option>
                             ))}
-                            <option value="__custom__" className="bg-black text-white font-semibold">
+                            <option value="__custom__" className="font-semibold">
                               ➕ Add Custom Domain
                             </option>
                           </select>

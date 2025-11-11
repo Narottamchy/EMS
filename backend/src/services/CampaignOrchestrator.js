@@ -49,6 +49,12 @@ class CampaignOrchestrator {
       campaign.status = 'running';
       campaign.startedBy = userId;
       campaign.startedAt = new Date();
+      
+      // Set the UTC day when campaign started for day transition tracking
+      const startedOnUTCDay = new Date().toISOString().split('T')[0];
+      campaign.progress.startedOnUTCDay = startedOnUTCDay;
+      campaign.progress.lastDayTransitionAt = new Date();
+      
       await campaign.save();
 
       // Initialize campaign in memory
@@ -207,6 +213,21 @@ class CampaignOrchestrator {
       senders: senderEmails.slice(0, 5)
     });
 
+    // Calculate end of current UTC day
+    const now = new Date();
+    const endOfUTCDay = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      23, 59, 59, 999
+    ));
+
+    logger.info('⏰ Scheduling window', {
+      now: now.toISOString(),
+      endOfUTCDay: endOfUTCDay.toISOString(),
+      currentUTCHour: now.getUTCHours()
+    });
+
     for (const domainPlan of dailyPlan.domains) {
       for (const emailPlan of domainPlan.emails) {
         for (const hourPlan of emailPlan.hours) {
@@ -224,52 +245,40 @@ class CampaignOrchestrator {
               const recipient = recipients[recipientIndex++];
               const recipientDomain = recipient.split('@')[1];
 
-              const now = new Date();
-              const currentHour = now.getHours();
-              const currentMinute = now.getMinutes();
+              const currentUTCHour = now.getUTCHours();
+              const currentUTCMinute = now.getUTCMinutes();
               
-              let scheduledTime = new Date(now);
+              // Create scheduled time in UTC
+              let scheduledTime = new Date(Date.UTC(
+                now.getUTCFullYear(),
+                now.getUTCMonth(),
+                now.getUTCDate(),
+                hourPlan.hour,
+                minute,
+                0,
+                0
+              ));
+              
               const emailsInThisMinute = minuteDistribution[minute] || 0;
               const emailIndexInMinute = i;
               const secondsOffset = emailsInThisMinute > 1 
                 ? Math.floor((emailIndexInMinute * 60) / emailsInThisMinute) 
                 : 0;
               
-              scheduledTime.setHours(hourPlan.hour, minute, secondsOffset, 0);
+              scheduledTime.setUTCSeconds(secondsOffset);
               
-              if (hourPlan.hour === currentHour) {
-                if (minute > currentMinute) {
-                  scheduledTime = new Date(now);
-                  scheduledTime.setMinutes(minute, secondsOffset, 0);
-                } else if (minute === currentMinute) {
-                  scheduledTime = new Date(now);
-                  scheduledTime.setSeconds(scheduledTime.getSeconds() + secondsOffset + 2);
-                } else {
-                  scheduledTime = new Date(now);
-                  scheduledTime.setHours(currentHour + 1, minute, secondsOffset, 0);
-                }
-              } else if (hourPlan.hour > currentHour) {
-                scheduledTime = new Date(now);
-                scheduledTime.setHours(hourPlan.hour, minute, secondsOffset, 0);
-              } else {
-                scheduledTime = new Date(now);
-                scheduledTime.setDate(scheduledTime.getDate() + 1);
-                scheduledTime.setHours(hourPlan.hour, minute, secondsOffset, 0);
+              // If scheduled time is in the past or beyond current UTC day, skip
+              if (scheduledTime <= now) {
+                // Skip past times
+                continue;
+              }
+              
+              if (scheduledTime > endOfUTCDay) {
+                // Skip times beyond current UTC day - they'll be scheduled tomorrow
+                continue;
               }
               
               const delay = Math.max(0, scheduledTime - now);
-              
-              // Log if delay is very large
-              if (delay > 86400000) { // More than 24 hours
-                logger.warn('⚠️ Large delay detected', {
-                  delayMs: delay,
-                  delayHours: Math.round(delay / 3600000),
-                  scheduledTime: scheduledTime.toISOString(),
-                  currentTime: now.toISOString(),
-                  hourPlan: hourPlan.hour,
-                  minute: minute
-                });
-              }
 
               // Randomly select a template if multiple templates are available
               const selectedTemplate = this.getRandomTemplate(campaign);
@@ -301,7 +310,7 @@ class CampaignOrchestrator {
                   day: campaign.progress.currentDay,
                   hour: hourPlan.hour,
                   minute: minute,
-                  second: Math.floor(Math.random() * 60)
+                  second: secondsOffset
                 },
                 delay: delay,
                 priority: 5,
@@ -1159,122 +1168,6 @@ class CampaignOrchestrator {
     // Use the same logic as generateDailyTotal
     const { generateDailyTotal } = require('../utils/randomization');
     return generateDailyTotal(baseDailyTotal, day, quotaDays, targetSum);
-  }
-
-  /**
-   * Process campaign for a new day (called by DailyScheduler)
-   * This is similar to processCampaign but designed for day transitions
-   */
-  async processCampaignForNewDay(campaignId) {
-    try {
-      logger.info('🔄 Processing campaign for new day', { campaignId });
-      
-      const campaign = await Campaign.findById(campaignId).populate('configuration.customEmailListId');
-      
-      if (!campaign) {
-        throw new Error('Campaign not found');
-      }
-
-      if (campaign.status !== 'running') {
-        logger.warn('⚠️ Campaign is not running, skipping day transition', {
-          campaignId,
-          status: campaign.status
-        });
-        return;
-      }
-
-      logger.info('📋 Processing new day for campaign', {
-        campaignId,
-        name: campaign.name,
-        currentDay: campaign.progress.currentDay
-      });
-
-      // Get email list based on source (global or custom)
-      const emailList = await this.getEmailListForCampaign(campaign);
-      logger.info('📧 Email list fetched', { 
-        totalEmails: emailList.length,
-        source: campaign.configuration.emailListSource 
-      });
-      
-      if (emailList.length === 0) {
-        throw new Error('No emails found in email list');
-      }
-      
-      // Check emails sent by THIS campaign
-      const campaignSentEmails = await SentEmail.find({ 
-        campaign: campaignId 
-      }).select('recipient.email');
-
-      const sentEmailSet = new Set(campaignSentEmails.map(e => e.recipient.email.toLowerCase().trim()));
-      const unsubscribedList = await this.getUnsubscribedList();
-      const unsubscribedSet = new Set(unsubscribedList.map(e => e.toLowerCase().trim()));
-
-      let recipientsToSend = emailList.filter(email => 
-        !sentEmailSet.has(email.toLowerCase().trim()) && 
-        !unsubscribedSet.has(email.toLowerCase().trim())
-      );
-
-      // Apply warmup mode if enabled
-      if (campaign.configuration.warmupMode?.enabled) {
-        recipientsToSend = await this.applyWarmupMode(campaign, recipientsToSend);
-      }
-
-      logger.info('📊 New day processing summary', {
-        campaignId,
-        currentDay: campaign.progress.currentDay,
-        totalRecipients: emailList.length,
-        alreadySent: sentEmailSet.size,
-        unsubscribed: unsubscribedSet.size,
-        toSend: recipientsToSend.length,
-        warmupMode: campaign.configuration.warmupMode?.enabled
-      });
-
-      if (recipientsToSend.length === 0) {
-        logger.warn('⚠️ No recipients to send to for new day');
-        return;
-      }
-
-      const dailyPlan = this.generateDailyPlan(
-        campaign.configuration,
-        campaign.progress.currentDay,
-        recipientsToSend.length
-      );
-      
-      logger.info('📅 Daily plan generated for new day', {
-        day: dailyPlan.day,
-        totalEmails: dailyPlan.totalEmails
-      });
-
-      // Store the new day's plan
-      await this.storeCampaignPlan(campaignId, dailyPlan, {
-        totalEmails: emailList.length,
-        alreadySent: sentEmailSet.size,
-        unsubscribed: unsubscribedSet.size,
-        availableToSend: recipientsToSend.length
-      });
-
-      // Schedule emails for the new day
-      await this.scheduleEmails(campaign, dailyPlan, recipientsToSend);
-
-      logger.info('✅ New day emails scheduled successfully', {
-        campaignId,
-        day: campaign.progress.currentDay,
-        emailsScheduled: dailyPlan.totalEmails
-      });
-
-    } catch (error) {
-      logger.error('❌ Failed to process campaign for new day:', error);
-      
-      // Update campaign status to failed
-      await Campaign.findByIdAndUpdate(campaignId, {
-        status: 'failed',
-        failedAt: new Date(),
-        errorMessage: error.message
-      });
-
-      this.activeCampaigns.delete(campaignId.toString());
-      throw error;
-    }
   }
 }
 
