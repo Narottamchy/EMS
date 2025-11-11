@@ -1160,6 +1160,122 @@ class CampaignOrchestrator {
     const { generateDailyTotal } = require('../utils/randomization');
     return generateDailyTotal(baseDailyTotal, day, quotaDays, targetSum);
   }
+
+  /**
+   * Process campaign for a new day (called by DailyScheduler)
+   * This is similar to processCampaign but designed for day transitions
+   */
+  async processCampaignForNewDay(campaignId) {
+    try {
+      logger.info('🔄 Processing campaign for new day', { campaignId });
+      
+      const campaign = await Campaign.findById(campaignId).populate('configuration.customEmailListId');
+      
+      if (!campaign) {
+        throw new Error('Campaign not found');
+      }
+
+      if (campaign.status !== 'running') {
+        logger.warn('⚠️ Campaign is not running, skipping day transition', {
+          campaignId,
+          status: campaign.status
+        });
+        return;
+      }
+
+      logger.info('📋 Processing new day for campaign', {
+        campaignId,
+        name: campaign.name,
+        currentDay: campaign.progress.currentDay
+      });
+
+      // Get email list based on source (global or custom)
+      const emailList = await this.getEmailListForCampaign(campaign);
+      logger.info('📧 Email list fetched', { 
+        totalEmails: emailList.length,
+        source: campaign.configuration.emailListSource 
+      });
+      
+      if (emailList.length === 0) {
+        throw new Error('No emails found in email list');
+      }
+      
+      // Check emails sent by THIS campaign
+      const campaignSentEmails = await SentEmail.find({ 
+        campaign: campaignId 
+      }).select('recipient.email');
+
+      const sentEmailSet = new Set(campaignSentEmails.map(e => e.recipient.email.toLowerCase().trim()));
+      const unsubscribedList = await this.getUnsubscribedList();
+      const unsubscribedSet = new Set(unsubscribedList.map(e => e.toLowerCase().trim()));
+
+      let recipientsToSend = emailList.filter(email => 
+        !sentEmailSet.has(email.toLowerCase().trim()) && 
+        !unsubscribedSet.has(email.toLowerCase().trim())
+      );
+
+      // Apply warmup mode if enabled
+      if (campaign.configuration.warmupMode?.enabled) {
+        recipientsToSend = await this.applyWarmupMode(campaign, recipientsToSend);
+      }
+
+      logger.info('📊 New day processing summary', {
+        campaignId,
+        currentDay: campaign.progress.currentDay,
+        totalRecipients: emailList.length,
+        alreadySent: sentEmailSet.size,
+        unsubscribed: unsubscribedSet.size,
+        toSend: recipientsToSend.length,
+        warmupMode: campaign.configuration.warmupMode?.enabled
+      });
+
+      if (recipientsToSend.length === 0) {
+        logger.warn('⚠️ No recipients to send to for new day');
+        return;
+      }
+
+      const dailyPlan = this.generateDailyPlan(
+        campaign.configuration,
+        campaign.progress.currentDay,
+        recipientsToSend.length
+      );
+      
+      logger.info('📅 Daily plan generated for new day', {
+        day: dailyPlan.day,
+        totalEmails: dailyPlan.totalEmails
+      });
+
+      // Store the new day's plan
+      await this.storeCampaignPlan(campaignId, dailyPlan, {
+        totalEmails: emailList.length,
+        alreadySent: sentEmailSet.size,
+        unsubscribed: unsubscribedSet.size,
+        availableToSend: recipientsToSend.length
+      });
+
+      // Schedule emails for the new day
+      await this.scheduleEmails(campaign, dailyPlan, recipientsToSend);
+
+      logger.info('✅ New day emails scheduled successfully', {
+        campaignId,
+        day: campaign.progress.currentDay,
+        emailsScheduled: dailyPlan.totalEmails
+      });
+
+    } catch (error) {
+      logger.error('❌ Failed to process campaign for new day:', error);
+      
+      // Update campaign status to failed
+      await Campaign.findByIdAndUpdate(campaignId, {
+        status: 'failed',
+        failedAt: new Date(),
+        errorMessage: error.message
+      });
+
+      this.activeCampaigns.delete(campaignId.toString());
+      throw error;
+    }
+  }
 }
 
 module.exports = new CampaignOrchestrator();

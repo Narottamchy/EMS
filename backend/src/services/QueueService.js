@@ -149,19 +149,21 @@ class QueueService {
         return { skipped: true, reason: 'campaign_not_running' };
       }
 
-      // Safety: skip if job is stale (scheduled for a past day or too old)
+      // Safety: skip if job is too old (more than 48 hours past scheduled time)
+      // This allows jobs to be processed on the next day if they were scheduled for early morning
       if (scheduledFor) {
         const scheduledTime = new Date(scheduledFor);
         const now = new Date();
-        const sameDay = scheduledTime.toDateString() === now.toDateString();
         const ageMs = now - scheduledTime;
-        // Consider jobs stale if not same calendar day or older than 2 hours
-        if (!sameDay || ageMs > 2 * 60 * 60 * 1000) {
-          logger.warn('⚠️  Skipping stale email job', {
+        const maxAgeMs = 48 * 60 * 60 * 1000; // 48 hours
+        
+        // Only skip if job is more than 48 hours old
+        if (ageMs > maxAgeMs) {
+          logger.warn('⚠️  Skipping stale email job (>48 hours old)', {
             jobId: job.id,
             scheduledFor,
             now: now.toISOString(),
-            ageMinutes: Math.round(ageMs / 60000)
+            ageHours: Math.round(ageMs / 3600000)
           });
           return { skipped: true, reason: 'stale_job' };
         }
