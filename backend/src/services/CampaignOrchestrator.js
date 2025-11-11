@@ -67,20 +67,24 @@ class CampaignOrchestrator {
       // Safety: purge any existing queued/delayed jobs for this campaign
       await QueueService.removeCampaignJobs(campaignId);
 
-      // Start processing campaign
-      this.processCampaign(campaignId).catch(error => {
-        logger.error('❌ Campaign processing failed:', error);
-        Campaign.findByIdAndUpdate(campaignId, {
-          status: 'failed',
-          failedAt: new Date(),
-          errorMessage: error.message
-        });
-      });
-
       logger.info('🚀 Campaign started', {
         campaignId,
         name: campaign.name,
         startedBy: userId
+      });
+
+      // Start processing campaign (fire and forget with error handling)
+      setImmediate(() => {
+        this.processCampaign(campaignId).catch(error => {
+          logger.error('❌ Campaign processing failed:', error);
+          Campaign.findByIdAndUpdate(campaignId, {
+            status: 'failed',
+            failedAt: new Date(),
+            errorMessage: error.message
+          }).catch(err => {
+            logger.error('❌ Failed to update campaign status:', err);
+          });
+        });
       });
 
       return campaign;
@@ -93,13 +97,19 @@ class CampaignOrchestrator {
 
   async processCampaign(campaignId) {
     try {
-      logger.info('🔄 Starting campaign processing', { campaignId });
+      logger.info('🔄 Starting campaign processing', { 
+        campaignId: campaignId.toString(),
+        timestamp: new Date().toISOString()
+      });
       
       await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      logger.info('⏰ Delay completed, fetching campaign', { campaignId });
       
       const campaign = await Campaign.findById(campaignId).populate('configuration.customEmailListId');
       
       if (!campaign) {
+        logger.error('❌ Campaign not found in database', { campaignId });
         throw new Error('Campaign not found');
       }
 
@@ -109,7 +119,9 @@ class CampaignOrchestrator {
         status: campaign.status,
         currentDay: campaign.progress.currentDay,
         emailListSource: campaign.configuration.emailListSource,
-        warmupMode: campaign.configuration.warmupMode?.enabled
+        warmupMode: campaign.configuration.warmupMode?.enabled,
+        hasConfiguration: !!campaign.configuration,
+        hasDomains: campaign.configuration?.domains?.length > 0
       });
 
       // Get email list based on source (global or custom)
@@ -322,13 +334,26 @@ class CampaignOrchestrator {
       }
     }
 
-    logger.info('📬 Email jobs created', { totalJobs: emailJobs.length });
+    logger.info('📬 Email jobs created', { 
+      totalJobs: emailJobs.length,
+      recipientsProcessed: recipientIndex,
+      totalRecipients: recipients.length
+    });
+
+    if (emailJobs.length === 0) {
+      logger.warn('⚠️ No email jobs created - all times may be in the past or beyond current UTC day');
+      return;
+    }
 
     const batchSize = 1000;
 
     for (let i = 0; i < emailJobs.length; i += batchSize) {
       const batch = emailJobs.slice(i, i + batchSize);
       await QueueService.addBulkEmailsToQueue(batch);
+      logger.info(`📦 Batch ${Math.floor(i/batchSize) + 1} added to queue`, {
+        batchSize: batch.length,
+        progress: `${i + batch.length}/${emailJobs.length}`
+      });
     }
 
     logger.info('🎉 All email jobs added to queue successfully', {
