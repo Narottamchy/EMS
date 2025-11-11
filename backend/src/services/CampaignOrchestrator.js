@@ -135,17 +135,32 @@ class CampaignOrchestrator {
         throw new Error('No emails found in S3 email list');
       }
       
-      // Check emails sent across ALL campaigns, not just this one
-      const allSentEmails = await SentEmail.find({})
+      // Check emails sent - if warmup mode is enabled, only check THIS campaign
+      // Otherwise, check across ALL campaigns for global deduplication
+      const sentEmailQuery = campaign.configuration.warmupMode?.enabled 
+        ? { campaign: campaignId }  // Warmup mode: only check this campaign
+        : {};                        // Normal mode: check all campaigns
+      
+      const sentEmails = await SentEmail.find(sentEmailQuery)
         .select('recipient.email');
 
-      const sentEmailSet = new Set(allSentEmails.map(e => e.recipient.email));
+      const sentEmailSet = new Set(sentEmails.map(e => e.recipient.email));
       const unsubscribedList = await this.getUnsubscribedList();
       const unsubscribedSet = new Set(unsubscribedList);
 
       let recipientsToSend = emailList.filter(email => 
         !sentEmailSet.has(email) && !unsubscribedSet.has(email)
       );
+
+      logger.info('📊 Email filtering results', {
+        campaignId,
+        warmupMode: campaign.configuration.warmupMode?.enabled,
+        totalInList: emailList.length,
+        alreadySent: sentEmailSet.size,
+        unsubscribed: unsubscribedSet.size,
+        availableToSend: recipientsToSend.length,
+        sentCheckScope: campaign.configuration.warmupMode?.enabled ? 'this_campaign_only' : 'all_campaigns'
+      });
 
       // Apply warmup mode if enabled
       if (campaign.configuration.warmupMode?.enabled) {
