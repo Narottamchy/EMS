@@ -361,16 +361,18 @@ const CreateCampaign = () => {
                                 handleDomainChange(domainIndex, e.target.value);
                               }
                             }}
-                            className="input w-full"
+                            className="w-full px-4 py-3 bg-black text-white border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30 transition-all"
                             required
                           >
-                            <option value="">Select verified domain from SES</option>
+                            <option value="" className="bg-black text-white">
+                              Select verified domain from SES
+                            </option>
                             {verifiedDomains.map((domain) => (
-                              <option key={domain} value={domain}>
+                              <option key={domain} value={domain} className="bg-black text-white">
                                 {domain}
                               </option>
                             ))}
-                            <option value="__custom__" className="font-semibold text-white">
+                            <option value="__custom__" className="bg-black text-white font-semibold">
                               ➕ Add Custom Domain
                             </option>
                           </select>
@@ -620,12 +622,12 @@ const CreateCampaign = () => {
                         customEmailListId: e.target.value
                       }
                     })}
-                    className="input"
+                    className="w-full px-4 py-3 bg-black text-white border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30 transition-all"
                     required={formData.configuration.emailListSource === 'custom'}
                   >
-                    <option value="">Select an email list</option>
+                    <option value="" className="bg-black text-white">Select an email list</option>
                     {emailLists.map((list) => (
-                      <option key={list._id} value={list._id}>
+                      <option key={list._id} value={list._id} className="bg-black text-white">
                         {list.name} ({list.emailCount.toLocaleString()} emails)
                       </option>
                     ))}
