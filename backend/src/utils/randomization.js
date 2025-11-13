@@ -55,14 +55,27 @@ const generateDomainDistribution = (totalEmails, numDomains) => {
   let remaining = totalEmails;
   
   for (let i = 0; i < numDomains - 1; i++) {
-    const minPerDomain = Math.max(850, Math.floor(remaining / (numDomains - i) * 0.8));
-    const maxPerDomain = Math.min(1150, Math.floor(remaining / (numDomains - i) * 1.2));
-    const domainEmails = getRandomInt(minPerDomain, maxPerDomain);
+    const domainsLeft = numDomains - i;
+    const avgPerDomain = Math.floor(remaining / domainsLeft);
+    
+    // Calculate min/max with proper bounds to prevent negative remainder
+    const minPerDomain = Math.max(1, Math.floor(avgPerDomain * 0.8));
+    const maxPerDomain = Math.min(
+      Math.floor(avgPerDomain * 1.2),
+      remaining - (domainsLeft - 1) // Ensure at least 1 email for remaining domains
+    );
+    
+    // Ensure min doesn't exceed max
+    const actualMin = Math.min(minPerDomain, maxPerDomain);
+    const actualMax = Math.max(actualMin, maxPerDomain);
+    
+    const domainEmails = getRandomInt(actualMin, actualMax);
     distribution.push(domainEmails);
     remaining -= domainEmails;
   }
   
-  distribution.push(remaining); // Last domain gets remaining emails
+  // Last domain gets remaining emails (guaranteed to be >= 1)
+  distribution.push(Math.max(1, remaining));
   return distribution;
 };
 
@@ -80,6 +93,8 @@ const generateEmailDistribution = (domainTotal, numEmails, maxEmailPercentage, r
   const maxDeviationFactor = 0.3 + (randomizationIntensity * 0.4); // 0.3 to 0.7
   
   for (let i = 0; i < numEmails - 1; i++) {
+    const emailsLeft = numEmails - i;
+    
     // Start with base equal share and add controlled randomness
     const baseShare = baseEqualShare;
     
@@ -90,22 +105,27 @@ const generateEmailDistribution = (domainTotal, numEmails, maxEmailPercentage, r
     // Ensure we don't exceed max percentage or leave too little for others
     const maxForThisEmail = Math.min(
       maxPerEmail,
-      Math.floor(remaining / (numEmails - i) * (1.3 + randomizationIntensity * 0.2)), // Max deviation based on intensity
-      adjustedShare + Math.floor(baseShare * maxDeviationFactor)
+      Math.floor(remaining / emailsLeft * (1.3 + randomizationIntensity * 0.2)), // Max deviation based on intensity
+      adjustedShare + Math.floor(baseShare * maxDeviationFactor),
+      remaining - (emailsLeft - 1) // Ensure at least 1 email for remaining senders
     );
     
     const minForThisEmail = Math.max(
       1,
-      Math.floor(remaining / (numEmails - i) * (0.7 - randomizationIntensity * 0.2)), // Min deviation based on intensity
+      Math.floor(remaining / emailsLeft * (0.7 - randomizationIntensity * 0.2)), // Min deviation based on intensity
       adjustedShare - Math.floor(baseShare * maxDeviationFactor)
     );
     
-    const emailCount = getRandomInt(minForThisEmail, maxForThisEmail);
+    // Ensure min doesn't exceed max
+    const actualMin = Math.min(minForThisEmail, maxForThisEmail);
+    const actualMax = Math.max(actualMin, maxForThisEmail);
+    
+    const emailCount = getRandomInt(actualMin, actualMax);
     distribution.push(emailCount);
     remaining -= emailCount;
   }
   
-  // Last email gets remaining (ensures total adds up correctly)
+  // Last email gets remaining (ensures total adds up correctly, guaranteed >= 1)
   distribution.push(Math.max(1, remaining));
   return distribution;
 };
