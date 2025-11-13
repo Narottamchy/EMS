@@ -162,6 +162,27 @@ class CampaignOrchestrator {
         sentCheckScope: campaign.configuration.warmupMode?.enabled ? 'this_campaign_only' : 'all_campaigns'
       });
 
+      // In warmup mode, if we've exhausted the list, reset and start over
+      if (campaign.configuration.warmupMode?.enabled && recipientsToSend.length === 0) {
+        logger.info('🔄 Warmup mode: All emails sent, resetting sent emails for this campaign to restart cycle');
+        
+        // Delete all sent emails for this campaign to restart the cycle
+        await SentEmail.deleteMany({ campaign: campaignId });
+        
+        // Reset the warmup index
+        await Campaign.findByIdAndUpdate(campaignId, {
+          'configuration.warmupMode.currentIndex': 0
+        });
+        
+        // Recalculate available recipients (all emails minus unsubscribed)
+        recipientsToSend = emailList.filter(email => !unsubscribedSet.has(email));
+        
+        logger.info('✅ Warmup mode: Reset complete', {
+          campaignId,
+          availableToSend: recipientsToSend.length
+        });
+      }
+
       // Apply warmup mode if enabled
       if (campaign.configuration.warmupMode?.enabled) {
         recipientsToSend = await this.applyWarmupMode(campaign, recipientsToSend);
@@ -644,15 +665,43 @@ class CampaignOrchestrator {
 
         // Get email list based on source (global or custom)
         const emailList = await this.getEmailListForCampaign(campaign);
-        const allSentEmails = await SentEmail.find({})
+        
+        // Check emails sent - if warmup mode is enabled, only check THIS campaign
+        // Otherwise, check across ALL campaigns for global deduplication
+        const sentEmailQuery = campaign.configuration.warmupMode?.enabled 
+          ? { campaign: campaignId }  // Warmup mode: only check this campaign
+          : {};                        // Normal mode: check all campaigns
+        
+        const allSentEmails = await SentEmail.find(sentEmailQuery)
           .select('recipient.email');
         const sentEmailSet = new Set(allSentEmails.map(e => e.recipient.email));
         const unsubscribedList = await this.getUnsubscribedList();
         const unsubscribedSet = new Set(unsubscribedList);
 
-        const recipientsToSend = emailList.filter(email => 
+        let recipientsToSend = emailList.filter(email => 
           !sentEmailSet.has(email) && !unsubscribedSet.has(email)
         );
+
+        // In warmup mode, if we've exhausted the list, reset and start over
+        if (campaign.configuration.warmupMode?.enabled && recipientsToSend.length === 0) {
+          logger.info('🔄 Warmup mode (resume): All emails sent, resetting sent emails for this campaign to restart cycle');
+          
+          // Delete all sent emails for this campaign to restart the cycle
+          await SentEmail.deleteMany({ campaign: campaignId });
+          
+          // Reset the warmup index
+          await Campaign.findByIdAndUpdate(campaignId, {
+            'configuration.warmupMode.currentIndex': 0
+          });
+          
+          // Recalculate available recipients (all emails minus unsubscribed)
+          recipientsToSend = emailList.filter(email => !unsubscribedSet.has(email));
+          
+          logger.info('✅ Warmup mode (resume): Reset complete', {
+            campaignId,
+            availableToSend: recipientsToSend.length
+          });
+        }
 
         if (recipientsToSend.length === 0) {
           logger.warn('⚠️ No recipients to send to on resume');
