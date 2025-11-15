@@ -1361,7 +1361,13 @@ class CampaignOrchestrator {
       // Schedule emails for custom duration
       await this.scheduleCustomDurationEmails(campaign, customPlan, recipientsToSend);
       
-      logger.info('✅ Custom duration campaign scheduled successfully');
+      logger.info('✅ Custom duration campaign scheduled successfully', {
+        campaignId: campaign._id,
+        totalEmails: customPlan.totalEmails
+      });
+      
+      // Note: Campaign stays in 'running' state - emails will be sent by queue processor
+      // The campaign will be marked as completed when all emails are processed
       
     } catch (error) {
       logger.error('❌ Failed to process custom duration campaign:', error);
@@ -1389,80 +1395,108 @@ class CampaignOrchestrator {
       // Limit recipients to plan total
       const limitedRecipients = recipients.slice(0, plan.totalEmails);
       
-      // Distribute emails across domains
-      const domainDistribution = generateDomainDistribution(plan.totalEmails, domains.length);
+      // Get all sender emails across all domains
+      const allSenderEmails = [];
+      domains.forEach(domain => {
+        const senders = senderEmailsByDomain[domain] || [];
+        senders.forEach(email => {
+          allSenderEmails.push({ email, domain });
+        });
+      });
+      
+      if (allSenderEmails.length === 0) {
+        throw new Error('No active sender emails found');
+      }
+      
+      logger.info('📧 Starting custom duration email scheduling', {
+        totalRecipients: limitedRecipients.length,
+        totalSenders: allSenderEmails.length,
+        startHour: plan.startHour,
+        endHour: plan.endHour
+      });
       
       let recipientIndex = 0;
       const now = new Date();
+      const currentHour = now.getHours();
       
-      for (let domainIdx = 0; domainIdx < domains.length; domainIdx++) {
-        const domain = domains[domainIdx];
-        const domainEmails = domainDistribution[domainIdx];
-        const senderEmails = senderEmailsByDomain[domain] || [];
+      // Determine if we should start today or tomorrow
+      let baseDate = new Date(now);
+      if (currentHour >= plan.endHour) {
+        // If current time is past the end hour, schedule for tomorrow
+        baseDate.setDate(baseDate.getDate() + 1);
+        logger.info('⏰ Current time past end hour, scheduling for tomorrow');
+      } else if (currentHour >= plan.startHour) {
+        // If we're within the window, start from current hour
+        logger.info('⏰ Within time window, starting from current hour');
+      }
+      
+      // Iterate through each hour in the distribution
+      for (let hour = 0; hour < 24; hour++) {
+        const emailsThisHour = plan.hourlyDistribution[hour];
+        if (emailsThisHour === 0) continue;
         
-        if (senderEmails.length === 0) {
-          logger.warn(`⚠️ No active sender emails for domain ${domain}`);
+        // Skip hours that have already passed today
+        const scheduledDate = new Date(baseDate);
+        scheduledDate.setHours(hour, 0, 0, 0);
+        
+        if (scheduledDate < now) {
+          logger.info(`⏭️ Skipping hour ${hour} (already passed)`);
           continue;
         }
         
-        // Distribute domain emails across sender emails
-        const emailDistribution = generateEmailDistribution(
-          domainEmails,
-          senderEmails.length,
-          config.maxEmailPercentage,
-          config.randomizationIntensity
-        );
+        logger.info(`📅 Scheduling ${emailsThisHour} emails for hour ${hour}`);
         
-        for (let senderIdx = 0; senderIdx < senderEmails.length; senderIdx++) {
-          const senderEmail = senderEmails[senderIdx];
-          const senderTotal = emailDistribution[senderIdx];
+        // Generate minute distribution for this hour
+        const minuteDistribution = generateMinuteDistribution(emailsThisHour);
+        
+        // Schedule emails for each minute
+        for (let minute = 0; minute < 60; minute++) {
+          const emailsThisMinute = minuteDistribution[minute];
           
-          // Distribute across active hours
-          for (let hour = 0; hour < 24; hour++) {
-            const hourlyCount = plan.hourlyDistribution[hour];
-            if (hourlyCount === 0) continue;
+          for (let i = 0; i < emailsThisMinute; i++) {
+            if (recipientIndex >= limitedRecipients.length) {
+              logger.info('✅ All recipients scheduled');
+              break;
+            }
             
-            // Calculate this sender's share for this hour
-            const senderHourlyShare = Math.floor(
-              (senderTotal / domainEmails) * hourlyCount
-            );
+            const recipient = limitedRecipients[recipientIndex];
+            const senderInfo = allSenderEmails[recipientIndex % allSenderEmails.length];
             
-            if (senderHourlyShare === 0) continue;
+            const scheduledTime = new Date(baseDate);
+            scheduledTime.setHours(hour, minute, Math.floor(Math.random() * 60), 0);
             
-            // Generate minute distribution
-            const minuteDistribution = generateMinuteDistribution(senderHourlyShare);
+            // Queue the email
+            await QueueService.addEmailJob({
+              campaignId: campaign._id,
+              campaignName: campaign.name,
+              templateName: this.getRandomTemplate(campaign),
+              senderEmail: senderInfo.email,
+              recipientEmail: recipient,
+              scheduledTime,
+              templateData: config.templateData || {}
+            });
             
-            for (let minute = 0; minute < 60; minute++) {
-              const minuteCount = minuteDistribution[minute];
-              
-              for (let i = 0; i < minuteCount; i++) {
-                if (recipientIndex >= limitedRecipients.length) break;
-                
-                const recipient = limitedRecipients[recipientIndex++];
-                const scheduledTime = new Date(now);
-                scheduledTime.setHours(hour, minute, 0, 0);
-                
-                // Queue the email
-                await QueueService.addEmailJob({
-                  campaignId: campaign._id,
-                  campaignName: campaign.name,
-                  templateName: this.getRandomTemplate(campaign),
-                  senderEmail,
-                  recipientEmail: recipient,
-                  scheduledTime,
-                  templateData: config.templateData || {}
-                });
-              }
+            recipientIndex++;
+            
+            // Log progress every 50 emails
+            if (recipientIndex % 50 === 0) {
+              logger.info(`📊 Progress: ${recipientIndex}/${limitedRecipients.length} emails scheduled`);
             }
           }
+          
+          if (recipientIndex >= limitedRecipients.length) break;
         }
+        
+        if (recipientIndex >= limitedRecipients.length) break;
       }
       
       logger.info('✅ Custom duration emails scheduled', {
         campaignId: campaign._id,
         totalScheduled: recipientIndex,
+        totalRequested: limitedRecipients.length,
         startHour: plan.startHour,
-        endHour: plan.endHour
+        endHour: plan.endHour,
+        scheduledDate: baseDate.toISOString()
       });
       
     } catch (error) {

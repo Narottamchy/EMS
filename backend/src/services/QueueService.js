@@ -153,10 +153,11 @@ class QueueService {
       if (scheduledFor) {
         const scheduledTime = new Date(scheduledFor);
         const now = new Date();
-        const sameDay = scheduledTime.toDateString() === now.toDateString();
         const ageMs = now - scheduledTime;
-        // Consider jobs stale if not same calendar day or older than 2 hours
-        if (!sameDay || ageMs > 2 * 60 * 60 * 1000) {
+        
+        // Only skip if the job is more than 2 hours PAST its scheduled time
+        // Don't skip jobs scheduled for the future
+        if (ageMs > 2 * 60 * 60 * 1000) {
           logger.warn('⚠️  Skipping stale email job', {
             jobId: job.id,
             scheduledFor,
@@ -287,6 +288,61 @@ class QueueService {
 
     } catch (error) {
       logger.error('❌ Failed to add email to queue:', error);
+      throw error;
+    }
+  }
+
+  // Add email job with simplified interface for campaign orchestrator
+  async addEmailJob({ campaignId, campaignName, templateName, senderEmail, recipientEmail, scheduledTime, templateData = {} }) {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    try {
+      // Calculate delay from scheduled time
+      const now = new Date();
+      const delay = Math.max(0, scheduledTime.getTime() - now.getTime());
+      
+      const emailData = {
+        campaignId,
+        recipient: {
+          email: recipientEmail
+        },
+        sender: {
+          email: senderEmail
+        },
+        templateName,
+        templateData,
+        scheduledFor: scheduledTime.toISOString(),
+        metadata: {
+          campaignName,
+          scheduledTime: scheduledTime.toISOString(),
+          day: 1,
+          hour: scheduledTime.getHours(),
+          minute: scheduledTime.getMinutes()
+        },
+        priority: 5,
+        delay
+      };
+
+      const job = await this.emailQueue.add('send-email', emailData, {
+        priority: 5,
+        delay
+      });
+
+      logger.debug('📬 Email job added to queue', {
+        jobId: job.id,
+        recipient: recipientEmail,
+        sender: senderEmail,
+        scheduledTime: scheduledTime.toISOString(),
+        delayMs: delay,
+        delayMinutes: Math.round(delay / 60000)
+      });
+
+      return job;
+
+    } catch (error) {
+      logger.error('❌ Failed to add email job to queue:', error);
       throw error;
     }
   }
