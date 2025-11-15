@@ -9,7 +9,8 @@ const {
   generateDomainDistribution,
   generateEmailDistribution,
   generateHourlyDistribution,
-  generateMinuteDistribution
+  generateMinuteDistribution,
+  shuffleArray
 } = require('../utils/randomization');
 
 class CampaignOrchestrator {
@@ -199,6 +200,13 @@ class CampaignOrchestrator {
 
       if (recipientsToSend.length === 0) {
         logger.warn('⚠️ No recipients to send to');
+        return;
+      }
+
+      // Check if this is a custom duration campaign
+      if (campaign.configuration.customDuration?.enabled) {
+        logger.info('🎯 Processing custom duration campaign');
+        await this.processCustomDurationCampaign(campaign, recipientsToSend);
         return;
       }
 
@@ -765,11 +773,14 @@ class CampaignOrchestrator {
           })
           .on('end', () => {
             const uniqueEmails = [...new Set(emails)]; // Remove duplicates
-            logger.info('📧 Email list loaded successfully', {
-              totalEmails: uniqueEmails.length,
-              sampleEmails: uniqueEmails.slice(0, 5)
+            // Randomize email list
+            const randomizedEmails = shuffleArray(uniqueEmails);
+            
+            logger.info('📧 Email list loaded and randomized successfully', {
+              totalEmails: randomizedEmails.length,
+              sampleEmails: randomizedEmails.slice(0, 5)
             });
-            resolve(uniqueEmails);
+            resolve(randomizedEmails);
           })
           .on('error', (error) => {
             logger.error('❌ Failed to read email list from S3:', error);
@@ -1168,8 +1179,11 @@ class CampaignOrchestrator {
             })
             .on('end', () => {
               const uniqueEmails = [...new Set(emails)];
-              logger.info('📧 Custom email list loaded', {
-                totalEmails: uniqueEmails.length,
+              // Randomize email list
+              const randomizedEmails = shuffleArray(uniqueEmails);
+              
+              logger.info('📧 Custom email list loaded and randomized', {
+                totalEmails: randomizedEmails.length,
                 listName: emailList.name
               });
               
@@ -1179,7 +1193,7 @@ class CampaignOrchestrator {
                 $inc: { 'metadata.usageCount': 1 }
               }).catch(err => logger.error('Failed to update email list metadata:', err));
               
-              resolve(uniqueEmails);
+              resolve(randomizedEmails);
             })
             .on('error', (error) => {
               logger.error('❌ Failed to read custom email list from S3:', error);
@@ -1257,6 +1271,204 @@ class CampaignOrchestrator {
     // Use the same logic as generateDailyTotal
     const { generateDailyTotal } = require('../utils/randomization');
     return generateDailyTotal(baseDailyTotal, day, quotaDays, targetSum);
+  }
+
+  // Generate custom duration plan for time-based campaigns
+  generateCustomDurationPlan(config, totalEmails, recipientsToSend) {
+    const { customDuration } = config;
+    const { startHour, endHour, totalEmails: targetEmails } = customDuration;
+    
+    // Calculate duration in hours
+    let durationHours;
+    if (endHour >= startHour) {
+      durationHours = endHour - startHour;
+    } else {
+      // Handles overnight duration (e.g., 22:00 to 02:00)
+      durationHours = (24 - startHour) + endHour;
+    }
+    
+    // Ensure at least 1 hour duration
+    durationHours = Math.max(1, durationHours);
+    
+    // Limit emails to available recipients
+    const emailsToSend = Math.min(targetEmails, recipientsToSend.length);
+    
+    logger.info('📅 Generating custom duration plan', {
+      startHour,
+      endHour,
+      durationHours,
+      targetEmails,
+      emailsToSend,
+      availableRecipients: recipientsToSend.length
+    });
+    
+    // Generate hourly distribution for the specified duration
+    const hourlyDistribution = new Array(24).fill(0);
+    const emailsPerHour = Math.floor(emailsToSend / durationHours);
+    const remainderEmails = emailsToSend % durationHours;
+    
+    // Distribute emails across the time window
+    let currentHour = startHour;
+    for (let i = 0; i < durationHours; i++) {
+      hourlyDistribution[currentHour] = emailsPerHour;
+      currentHour = (currentHour + 1) % 24;
+    }
+    
+    // Distribute remainder emails randomly within the window
+    for (let i = 0; i < remainderEmails; i++) {
+      const randomOffset = Math.floor(Math.random() * durationHours);
+      const targetHour = (startHour + randomOffset) % 24;
+      hourlyDistribution[targetHour]++;
+    }
+    
+    return {
+      day: 1,
+      totalEmails: emailsToSend,
+      hourlyDistribution,
+      isCustomDuration: true,
+      durationHours,
+      startHour,
+      endHour
+    };
+  }
+
+  // Process custom duration campaign
+  async processCustomDurationCampaign(campaign, recipientsToSend) {
+    try {
+      const config = campaign.configuration;
+      const customPlan = this.generateCustomDurationPlan(
+        config,
+        config.customDuration.totalEmails,
+        recipientsToSend
+      );
+      
+      logger.info('📊 Custom duration plan generated', {
+        campaignId: campaign._id,
+        totalEmails: customPlan.totalEmails,
+        durationHours: customPlan.durationHours,
+        startHour: customPlan.startHour,
+        endHour: customPlan.endHour
+      });
+      
+      // Store the plan
+      await this.storeCampaignPlan(campaign._id, customPlan, {
+        totalEmails: recipientsToSend.length,
+        alreadySent: 0,
+        unsubscribed: 0,
+        availableToSend: recipientsToSend.length
+      });
+      
+      // Schedule emails for custom duration
+      await this.scheduleCustomDurationEmails(campaign, customPlan, recipientsToSend);
+      
+      logger.info('✅ Custom duration campaign scheduled successfully');
+      
+    } catch (error) {
+      logger.error('❌ Failed to process custom duration campaign:', error);
+      throw error;
+    }
+  }
+
+  // Schedule emails for custom duration campaign
+  async scheduleCustomDurationEmails(campaign, plan, recipients) {
+    try {
+      const config = campaign.configuration;
+      const domains = config.domains;
+      const senderEmailsByDomain = {};
+      
+      // Group sender emails by domain
+      config.senderEmails.forEach(sender => {
+        if (sender.isActive) {
+          if (!senderEmailsByDomain[sender.domain]) {
+            senderEmailsByDomain[sender.domain] = [];
+          }
+          senderEmailsByDomain[sender.domain].push(sender.email);
+        }
+      });
+      
+      // Limit recipients to plan total
+      const limitedRecipients = recipients.slice(0, plan.totalEmails);
+      
+      // Distribute emails across domains
+      const domainDistribution = generateDomainDistribution(plan.totalEmails, domains.length);
+      
+      let recipientIndex = 0;
+      const now = new Date();
+      
+      for (let domainIdx = 0; domainIdx < domains.length; domainIdx++) {
+        const domain = domains[domainIdx];
+        const domainEmails = domainDistribution[domainIdx];
+        const senderEmails = senderEmailsByDomain[domain] || [];
+        
+        if (senderEmails.length === 0) {
+          logger.warn(`⚠️ No active sender emails for domain ${domain}`);
+          continue;
+        }
+        
+        // Distribute domain emails across sender emails
+        const emailDistribution = generateEmailDistribution(
+          domainEmails,
+          senderEmails.length,
+          config.maxEmailPercentage,
+          config.randomizationIntensity
+        );
+        
+        for (let senderIdx = 0; senderIdx < senderEmails.length; senderIdx++) {
+          const senderEmail = senderEmails[senderIdx];
+          const senderTotal = emailDistribution[senderIdx];
+          
+          // Distribute across active hours
+          for (let hour = 0; hour < 24; hour++) {
+            const hourlyCount = plan.hourlyDistribution[hour];
+            if (hourlyCount === 0) continue;
+            
+            // Calculate this sender's share for this hour
+            const senderHourlyShare = Math.floor(
+              (senderTotal / domainEmails) * hourlyCount
+            );
+            
+            if (senderHourlyShare === 0) continue;
+            
+            // Generate minute distribution
+            const minuteDistribution = generateMinuteDistribution(senderHourlyShare);
+            
+            for (let minute = 0; minute < 60; minute++) {
+              const minuteCount = minuteDistribution[minute];
+              
+              for (let i = 0; i < minuteCount; i++) {
+                if (recipientIndex >= limitedRecipients.length) break;
+                
+                const recipient = limitedRecipients[recipientIndex++];
+                const scheduledTime = new Date(now);
+                scheduledTime.setHours(hour, minute, 0, 0);
+                
+                // Queue the email
+                await QueueService.addEmailJob({
+                  campaignId: campaign._id,
+                  campaignName: campaign.name,
+                  templateName: this.getRandomTemplate(campaign),
+                  senderEmail,
+                  recipientEmail: recipient,
+                  scheduledTime,
+                  templateData: config.templateData || {}
+                });
+              }
+            }
+          }
+        }
+      }
+      
+      logger.info('✅ Custom duration emails scheduled', {
+        campaignId: campaign._id,
+        totalScheduled: recipientIndex,
+        startHour: plan.startHour,
+        endHour: plan.endHour
+      });
+      
+    } catch (error) {
+      logger.error('❌ Failed to schedule custom duration emails:', error);
+      throw error;
+    }
   }
 }
 

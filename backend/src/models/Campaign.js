@@ -19,7 +19,7 @@ const campaignSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['immediate', 'scheduled', 'recurring'],
+    enum: ['immediate', 'scheduled', 'recurring', 'custom_duration'],
     default: 'immediate'
   },
   templateName: {
@@ -112,6 +112,26 @@ const campaignSchema = new mongoose.Schema({
       currentIndex: {
         type: Number,
         default: 0
+      }
+    },
+    customDuration: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      startHour: {
+        type: Number,
+        min: 0,
+        max: 23
+      },
+      endHour: {
+        type: Number,
+        min: 0,
+        max: 23
+      },
+      totalEmails: {
+        type: Number,
+        min: 1
       }
     }
   },

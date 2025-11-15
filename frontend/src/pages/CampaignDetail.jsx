@@ -292,6 +292,23 @@ const CampaignDetail = () => {
               {currentCampaign.configuration?.randomizationIntensity}
             </p>
           </div>
+          {currentCampaign.type === 'custom_duration' && currentCampaign.configuration?.customDuration?.enabled && (
+            <>
+              <div>
+                <p className="text-sm text-muted">Time Window</p>
+                <p className="text-lg font-medium text-white mt-1 flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  {currentCampaign.configuration.customDuration.startHour}:00 - {currentCampaign.configuration.customDuration.endHour}:00
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted">Target Emails</p>
+                <p className="text-lg font-medium text-white mt-1">
+                  {currentCampaign.configuration.customDuration.totalEmails}
+                </p>
+              </div>
+            </>
+          )}
         </div>
         
         {/* Sender Emails - Read Only */}

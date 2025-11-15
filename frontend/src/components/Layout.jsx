@@ -8,7 +8,8 @@ import {
   X,
   Users,
   UserX,
-  List
+  List,
+  Clock
 } from 'lucide-react';
 import { useState } from 'react';
 import useAuthStore from '../store/authStore';
@@ -22,6 +23,7 @@ const Layout = () => {
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Campaigns', href: '/campaigns', icon: Mail },
+    { name: 'Custom Campaign', href: '/campaigns/custom/new', icon: Clock },
     { name: 'Templates', href: '/templates', icon: FileText },
     // { name: 'Email List', href: '/emails', icon: Users },
     { name: 'Email Lists', href: '/email-lists', icon: List },

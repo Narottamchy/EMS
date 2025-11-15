@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Play, Pause, Trash2, Eye, Search } from 'lucide-react';
+import { Plus, Play, Pause, Trash2, Eye, Search, Clock } from 'lucide-react';
 import useCampaignStore from '../store/campaignStore';
 import useAuthStore from '../store/authStore';
 import StartCampaignModal from '../components/StartCampaignModal';
@@ -83,10 +83,16 @@ const Campaigns = () => {
           <p className="text-muted mt-2">Manage your email campaigns</p>
         </div>
         {canManage && (
-          <Link to="/campaigns/new" className="btn btn-primary">
-            <Plus className="w-5 h-5 mr-2" />
-            New Campaign
-          </Link>
+          <div className="flex gap-3">
+            <Link to="/campaigns/new" className="btn btn-primary">
+              <Plus className="w-5 h-5 mr-2" />
+              New Campaign
+            </Link>
+            <Link to="/campaigns/custom/new" className="btn btn-secondary">
+              <Clock className="w-5 h-5 mr-2" />
+              Custom Duration
+            </Link>
+          </div>
         )}
       </div>
 
@@ -145,6 +151,12 @@ const Campaigns = () => {
                       {campaign.name}
                     </h3>
                     <StatusBadge status={campaign.status} />
+                    {campaign.type === 'custom_duration' && (
+                      <span className="badge badge-info flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        Custom Duration
+                      </span>
+                    )}
                   </div>
                   <p className="text-muted mb-6">{campaign.description}</p>
                   

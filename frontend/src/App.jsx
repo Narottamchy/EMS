@@ -10,6 +10,7 @@ import Campaigns from './pages/Campaigns';
 import CampaignDetail from './pages/CampaignDetail';
 import CampaignSimulation from './pages/CampaignSimulation';
 import CreateCampaign from './pages/CreateCampaign';
+import CreateCustomCampaign from './pages/CreateCustomCampaign';
 import EditCampaign from './pages/EditCampaign';
 import Templates from './pages/Templates';
 import CreateTemplate from './pages/CreateTemplate';
@@ -83,6 +84,7 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="campaigns" element={<Campaigns />} />
           <Route path="campaigns/new" element={<CreateCampaign />} />
+          <Route path="campaigns/custom/new" element={<CreateCustomCampaign />} />
           <Route path="campaigns/:id" element={<CampaignDetail />} />
           <Route path="campaigns/:id/edit" element={<EditCampaign />} />
           <Route path="campaigns/:id/simulate" element={<CampaignSimulation />} />
