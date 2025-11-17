@@ -83,7 +83,7 @@ const TodaysPlan = ({ campaignId }) => {
     );
   }
 
-  const { campaign, todaysPlan, emailListStats, totalRecipients } = todaysData;
+  const { campaign, todaysPlan, emailListStats, totalRecipients ,todaysQueued} = todaysData;
 
   return (
     <div className="card">
@@ -215,7 +215,7 @@ const TodaysPlan = ({ campaignId }) => {
           <div>
             <p className="text-white font-medium">Available Recipients</p>
             <p className="text-white font-semibold">
-              {totalRecipients?.toLocaleString() || 0}
+              {todaysQueued?.toLocaleString() || 0}
             </p>
           </div>
         </div>

@@ -148,7 +148,7 @@ const Campaigns = () => {
                   </div>
                   <p className="text-muted mb-6">{campaign.description}</p>
                   
-                  <div className="grid grid-cols-2 gap-6 mb-6">
+                  <div className="grid grid-cols-3 gap-6 mb-6">
                     <div>
                       <p className="text-sm font-medium text-muted mb-1">Total Sent</p>
                       <p className="text-2xl font-bold text-foreground">

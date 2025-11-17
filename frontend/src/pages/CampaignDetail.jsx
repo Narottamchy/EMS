@@ -238,7 +238,7 @@ const CampaignDetail = () => {
         <>
           {/* Real-time Stats */}
       {realtimeStats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="card card-hover">
             <p className="text-sm font-medium text-muted mb-2">Queued</p>
             <p className="text-3xl font-bold text-secondary">
