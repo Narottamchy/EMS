@@ -478,6 +478,14 @@ exports.getCampaignRealtimeStats = async (req, res) => {
       emailStats: stats
     });
 
+    // Patch emailStats.queued to today's queued
+    let patchedStats = { ...stats };
+    try {
+      const todaysPlan = await CampaignOrchestrator.getTodaysPlan(id);
+      if (todaysPlan && typeof todaysPlan.todaysQueued === 'number') {
+        patchedStats.queued = todaysPlan.todaysQueued;
+      }
+    } catch (e) { /* ignore */ }
     res.json({
       success: true,
       data: {
@@ -487,7 +495,7 @@ exports.getCampaignRealtimeStats = async (req, res) => {
           status: campaign.status,
           progress: campaign.progress
         },
-        emailStats: stats,
+        emailStats: patchedStats,
         queueStats: campaignQueueStats,
         campaignPlan,
         isActive: CampaignOrchestrator.isCampaignActive(id)
@@ -789,7 +797,8 @@ exports.getTodaysPlan = async (req, res) => {
         },
         todaysPlan: todaysData.todaysPlan,
         emailListStats: todaysData.emailListStats,
-        totalRecipients: todaysData.totalRecipients
+        totalRecipients: todaysData.todaysScheduled,
+        todaysQueued: todaysData.todaysQueued
       }
     });
 

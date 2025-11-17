@@ -894,12 +894,26 @@ class CampaignOrchestrator {
         availableToSendGlobal: Math.max(0, (campaign.campaignPlan.emailListStats.totalEmails || 0) - alreadySentGlobal - (campaign.campaignPlan.emailListStats.unsubscribed || 0))
       };
       
+      // Calculate today's scheduled and sent
+      let todaysScheduled = 0;
+      if (todaysPlan) {
+        todaysScheduled = todaysPlan.totalEmails || 0;
+      }
+      const todaysSent = await SentEmail.countDocuments({
+        campaign: campaignId,
+        'metadata.day': currentDay,
+        status: { $in: ['sent', 'delivered'] }
+      });
       return {
         currentDay,
         todaysPlan,
         emailListStats,
-        totalRecipients: campaign.campaignPlan.totalRecipients
+        totalRecipients: todaysScheduled,
+        todaysScheduled,
+        todaysSent,
+        todaysQueued: Math.max(0, todaysScheduled - todaysSent)
       };
+
     } catch (error) {
       logger.error('❌ Failed to get today\'s plan:', error);
       throw error;
