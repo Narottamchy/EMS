@@ -213,7 +213,7 @@ const CampaignDetail = () => {
             <BarChart3 className="w-4 h-4" />
             Analytics
           </button>
-          <button
+          {/* <button
             onClick={() => setActiveTab('daily-stats')}
             className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
               activeTab === 'daily-stats'
@@ -223,7 +223,7 @@ const CampaignDetail = () => {
           >
             <BarChart3 className="w-4 h-4" />
             Daily Stats
-          </button>
+          </button> */}
         </nav>
       </div>
 

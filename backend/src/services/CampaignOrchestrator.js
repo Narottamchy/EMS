@@ -1059,13 +1059,16 @@ class CampaignOrchestrator {
         }
       }
 
-      // Get actual sent count for this campaign to show real completion
+      // Get today's sent count for this campaign (current day only)
       const SentEmail = require('../models/SentEmail');
-      const actualSentCount = await SentEmail.countDocuments({ campaign: campaignId });
-      
-      // Update execution stats with actual sent emails
-      currentExecution.totalCompleted = actualSentCount;
-      currentExecution.totalRemaining = Math.max(0, currentExecution.totalScheduled - actualSentCount);
+      const todaysCompletedCount = await SentEmail.countDocuments({
+        campaign: campaignId,
+        'metadata.day': currentDay,
+        status: { $in: ['sent', 'delivered'] }
+      });
+      // Update execution stats with only today's sent emails
+      currentExecution.totalCompleted = todaysCompletedCount;
+      currentExecution.totalRemaining = Math.max(0, currentExecution.totalScheduled - todaysCompletedCount);
       
       // Sort hours
       currentExecution.completedHours.sort((a, b) => a.hour - b.hour);
