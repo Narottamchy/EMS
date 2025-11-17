@@ -4,6 +4,7 @@ const logger = require('../utils/logger');
 const EmailService = require('./EmailService');
 const SentEmail = require('../models/SentEmail');
 const Campaign = require('../models/Campaign');
+const DailyCampaignStats = require('../models/DailyCampaignStats');
 const AnalyticsService = require('./AnalyticsService');
 
 class QueueService {
@@ -206,6 +207,9 @@ class QueueService {
       }, { new: true });
 
       await AnalyticsService.recordEmailSent(campaignId, metadata.day, metadata.hour, sender.email, recipient.domain);
+      
+      // Track daily stats
+      await this.updateDailyStats(campaignId, 'sent', sender.email, sender.domain, recipient.domain, metadata.hour, metadata.day);
       if (this.io && campaign && campaign.progress) {
         this.io.to(`campaign-${campaignId}`).emit(`campaign-${campaignId}-update`, {
           type: 'email_sent',
@@ -249,6 +253,9 @@ class QueueService {
       const campaign = await Campaign.findByIdAndUpdate(campaignId, {
         $inc: { 'progress.totalFailed': 1 }
       }, { new: true });
+      
+      // Track daily stats for failed emails
+      await this.updateDailyStats(campaignId, 'failed', sender.email, sender.domain, recipient.domain, metadata.hour, metadata.day);
 
       if (this.io && campaign && campaign.progress) {
         this.io.to(`campaign-${campaignId}`).emit(`campaign-${campaignId}-update`, {
@@ -585,6 +592,59 @@ class QueueService {
     } catch (error) {
       logger.error('❌ Error getting job status:', error);
       throw error;
+    }
+  }
+
+  async updateDailyStats(campaignId, statType, senderEmail, senderDomain, recipientDomain, hour, campaignDay) {
+    try {
+      const now = new Date();
+      const dateString = now.toISOString().split('T')[0]; // YYYY-MM-DD
+      const date = new Date(dateString);
+
+      // Find or create daily stats document
+      let dailyStats = await DailyCampaignStats.findOne({
+        campaign: campaignId,
+        dateString: dateString
+      });
+
+      if (!dailyStats) {
+        dailyStats = new DailyCampaignStats({
+          campaign: campaignId,
+          date: date,
+          dateString: dateString,
+          campaignDay: campaignDay || 1,
+          stats: {
+            totalScheduled: 0,
+            totalSent: 0,
+            totalFailed: 0,
+            totalQueued: 0
+          },
+          senderBreakdown: [],
+          hourlyBreakdown: [],
+          recipientDomainBreakdown: []
+        });
+      }
+
+      // Update stats using the model method
+      dailyStats.incrementStat(statType, senderEmail, senderDomain, recipientDomain, hour);
+
+      await dailyStats.save();
+
+      logger.debug('📊 Daily stats updated', {
+        campaignId,
+        dateString,
+        statType,
+        senderEmail,
+        hour
+      });
+
+    } catch (error) {
+      logger.error('❌ Failed to update daily stats:', {
+        error: error.message,
+        campaignId,
+        statType
+      });
+      // Don't throw - we don't want to fail email sending if stats tracking fails
     }
   }
 

@@ -105,6 +105,9 @@ export const campaignAPI = {
   addSenderEmail: (campaignId, data) => api.post(`/campaigns/${campaignId}/senders`, data),
   updateSenderEmail: (campaignId, senderEmailId, data) => api.put(`/campaigns/${campaignId}/senders/${senderEmailId}`, data),
   removeSenderEmail: (campaignId, senderEmailId) => api.delete(`/campaigns/${campaignId}/senders/${senderEmailId}`),
+  // Daily stats
+  getDailyStats: (id, params) => api.get(`/campaigns/${id}/daily-stats`, { params }),
+  getDateStats: (id, date) => api.get(`/campaigns/${id}/daily-stats/${date}`),
 };
 
 // Template API - Updated for SES templates

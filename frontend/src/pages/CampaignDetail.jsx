@@ -9,6 +9,7 @@ import { CampaignDetailSkeleton } from '../components/SkeletonComponents';
 import TodaysPlan from '../components/TodaysPlan';
 import CurrentExecution from '../components/CurrentExecution';
 import StartCampaignModal from '../components/StartCampaignModal';
+import DailyStats from '../components/DailyStats';
 
 const CampaignDetail = () => {
   const { id } = useParams();
@@ -212,6 +213,17 @@ const CampaignDetail = () => {
             <BarChart3 className="w-4 h-4" />
             Analytics
           </button>
+          <button
+            onClick={() => setActiveTab('daily-stats')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+              activeTab === 'daily-stats'
+                ? 'border-white/20 text-white'
+                : 'border-transparent text-muted hover:text-muted hover:border-white/10'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            Daily Stats
+          </button>
         </nav>
       </div>
 
@@ -226,7 +238,7 @@ const CampaignDetail = () => {
         <>
           {/* Real-time Stats */}
       {realtimeStats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="card card-hover">
             <p className="text-sm font-medium text-muted mb-2">Queued</p>
             <p className="text-3xl font-bold text-secondary">
@@ -239,12 +251,12 @@ const CampaignDetail = () => {
               {realtimeStats.emailStats?.sent || 0}
             </p>
           </div>
-          <div className="card card-hover">
+          {/* <div className="card card-hover">
             <p className="text-sm font-medium text-muted mb-2">Delivered</p>
             <p className="text-3xl font-bold text-accent">
               {realtimeStats.emailStats?.delivered || 0}
             </p>
-          </div>
+          </div> */}
           <div className="card card-hover">
             <p className="text-sm font-medium text-muted mb-2">Failed</p>
             <p className="text-3xl font-bold text-red-600">
@@ -379,6 +391,10 @@ const CampaignDetail = () => {
             </div>
           )}
         </>
+      )}
+
+      {activeTab === 'daily-stats' && (
+        <DailyStats campaignId={id} />
       )}
 
       {/* Start Campaign Modal */}

@@ -1061,11 +1061,11 @@ class CampaignOrchestrator {
 
       // Get actual sent count for this campaign to show real completion
       const SentEmail = require('../models/SentEmail');
-      const actualSentCount = await SentEmail.countDocuments({ campaignId: campaignId });
+      const actualSentCount = await SentEmail.countDocuments({ campaign: campaignId });
       
       // Update execution stats with actual sent emails
       currentExecution.totalCompleted = actualSentCount;
-      currentExecution.totalRemaining = currentExecution.totalScheduled - actualSentCount;
+      currentExecution.totalRemaining = Math.max(0, currentExecution.totalScheduled - actualSentCount);
       
       // Sort hours
       currentExecution.completedHours.sort((a, b) => a.hour - b.hour);
@@ -1079,7 +1079,7 @@ class CampaignOrchestrator {
       
       // Get emails sent by THIS campaign only
       const campaignSentEmails = await SentEmail.find({ 
-        campaignId: campaignId 
+        campaign: campaignId 
       }).select('recipient.email');
       const sentByCampaignSet = new Set(campaignSentEmails.map(e => e.recipient.email.toLowerCase().trim()));
       

@@ -148,25 +148,25 @@ const Campaigns = () => {
                   </div>
                   <p className="text-muted mb-6">{campaign.description}</p>
                   
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
+                  <div className="grid grid-cols-2 gap-6 mb-6">
                     <div>
                       <p className="text-sm font-medium text-muted mb-1">Total Sent</p>
                       <p className="text-2xl font-bold text-foreground">
                         {campaign.progress?.totalSent || 0}
                       </p>
                     </div>
-                    <div>
+                    {/* <div>
                       <p className="text-sm font-medium text-muted mb-1">Delivered</p>
                       <p className="text-2xl font-bold text-accent">
                         {campaign.progress?.totalDelivered || 0}
                       </p>
-                    </div>
+                    </div>*/}
                     <div>
                       <p className="text-sm font-medium text-muted mb-1">Failed</p>
                       <p className="text-2xl font-bold text-red-600">
                         {campaign.progress?.totalFailed || 0}
                       </p>
-                    </div>
+                    </div> 
                     <div>
                       <p className="text-sm font-medium text-muted mb-1">Current Day</p>
                       <p className="text-2xl font-bold text-foreground">

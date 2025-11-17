@@ -51,4 +51,8 @@ router.post('/:campaignId/senders', authorize('admin', 'manager'), campaignContr
 router.put('/:campaignId/senders/:senderEmailId', authorize('admin', 'manager'), campaignController.updateSenderEmail);
 router.delete('/:campaignId/senders/:senderEmailId', authorize('admin', 'manager'), campaignController.removeSenderEmail);
 
+// Daily stats with date range filtering
+router.get('/:id/daily-stats', campaignController.getDailyStats);
+router.get('/:id/daily-stats/:date', campaignController.getDateStats);
+
 module.exports = router;

@@ -4,6 +4,7 @@ const CampaignOrchestrator = require('../services/CampaignOrchestrator');
 const AnalyticsService = require('../services/AnalyticsService');
 const QueueService = require('../services/QueueService');
 const SystemLog = require('../models/SystemLog');
+const DailyCampaignStats = require('../models/DailyCampaignStats');
 const logger = require('../utils/logger');
 
 // Create new campaign
@@ -1207,6 +1208,124 @@ exports.saveTemplateData = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to save template data',
+      error: error.message
+    });
+  }
+};
+
+// Get daily stats for a campaign with date range filtering
+exports.getDailyStats = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { startDate, endDate } = req.query;
+
+    // Validate campaign exists
+    const campaign = await Campaign.findById(id);
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: 'Campaign not found'
+      });
+    }
+
+    // Build query
+    const query = { campaign: id };
+
+    // Add date range filter if provided
+    if (startDate || endDate) {
+      query.dateString = {};
+      if (startDate) {
+        query.dateString.$gte = startDate;
+      }
+      if (endDate) {
+        query.dateString.$lte = endDate;
+      }
+    }
+
+    // Fetch daily stats
+    const dailyStats = await DailyCampaignStats.find(query)
+      .sort({ date: -1 })
+      .lean();
+
+    // Calculate summary
+    const summary = {
+      totalDays: dailyStats.length,
+      totalSent: dailyStats.reduce((sum, day) => sum + (day.stats.totalSent || 0), 0),
+      totalFailed: dailyStats.reduce((sum, day) => sum + (day.stats.totalFailed || 0), 0),
+      totalQueued: dailyStats.reduce((sum, day) => sum + (day.stats.totalQueued || 0), 0),
+      dateRange: {
+        start: dailyStats.length > 0 ? dailyStats[dailyStats.length - 1].dateString : null,
+        end: dailyStats.length > 0 ? dailyStats[0].dateString : null
+      }
+    };
+
+    res.json({
+      success: true,
+      data: {
+        campaign: {
+          id: campaign._id,
+          name: campaign.name,
+          status: campaign.status
+        },
+        summary,
+        dailyStats
+      }
+    });
+
+  } catch (error) {
+    logger.error('❌ Get daily stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get daily stats',
+      error: error.message
+    });
+  }
+};
+
+// Get detailed stats for a specific date
+exports.getDateStats = async (req, res) => {
+  try {
+    const { id, date } = req.params;
+
+    // Validate campaign exists
+    const campaign = await Campaign.findById(id);
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: 'Campaign not found'
+      });
+    }
+
+    // Fetch stats for specific date
+    const dateStats = await DailyCampaignStats.findOne({
+      campaign: id,
+      dateString: date
+    }).lean();
+
+    if (!dateStats) {
+      return res.status(404).json({
+        success: false,
+        message: 'No stats found for this date'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        campaign: {
+          id: campaign._id,
+          name: campaign.name,
+          status: campaign.status
+        },
+        dateStats
+      }
+    });
+
+  } catch (error) {
+    logger.error('❌ Get date stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get date stats',
       error: error.message
     });
   }
