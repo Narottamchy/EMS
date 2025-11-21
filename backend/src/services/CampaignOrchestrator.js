@@ -213,14 +213,22 @@ class CampaignOrchestrator {
         totalEmails: dailyPlan.totalEmails
       });
 
-      // Calculate global stats (across all campaigns)
+      // Calculate global stats (across ALL campaigns) for comparison
+      const globalSentEmails = await SentEmail.find({}).select('recipient.email');
+      const globalSentEmailSet = new Set(globalSentEmails.map(e => e.recipient.email));
+      const globalAvailable = emailList.filter(email => 
+        !globalSentEmailSet.has(email) && !unsubscribedSet.has(email)
+      ).length;
+
+      // Store campaign plan with both campaign-specific and global stats
       await this.storeCampaignPlan(campaignId, dailyPlan, {
         totalEmails: emailList.length,
         alreadySent: sentEmailSet.size,
         unsubscribed: unsubscribedSet.size,
         availableToSend: recipientsToSend.length,
-        alreadySentGlobal: sentEmailSet.size, // Emails that have received ANY campaign
-        availableToSendGlobal: recipientsToSend.length // Emails that haven't received ANY campaign
+        alreadySentGlobal: globalSentEmailSet.size, // Emails that have received ANY campaign
+        availableToSendGlobal: globalAvailable, // Emails that haven't received ANY campaign
+        warmupMode: campaign.configuration.warmupMode?.enabled
       });
 
       await this.scheduleEmails(campaign, dailyPlan, recipientsToSend);
@@ -871,7 +879,7 @@ class CampaignOrchestrator {
   async getTodaysPlan(campaignId) {
     try {
       const SentEmail = require('../models/SentEmail');
-      const campaign = await Campaign.findById(campaignId).select('campaignPlan progress');
+      const campaign = await Campaign.findById(campaignId).select('campaignPlan progress configuration');
       
       if (!campaign || !campaign.campaignPlan) {
         return null;
@@ -880,18 +888,31 @@ class CampaignOrchestrator {
       const currentDay = campaign.progress.currentDay;
       const todaysPlan = campaign.campaignPlan.dailyPlans.find(plan => plan.day === currentDay);
       
-      // Get current count of already sent emails GLOBALLY across all campaigns
-      const allSentEmails = await SentEmail.find({}).select('recipient.email');
-      const uniqueSentEmails = new Set(allSentEmails.map(e => e.recipient.email));
-      const alreadySentGlobal = uniqueSentEmails.size;
+      // Check if warmup mode is enabled
+      const isWarmupMode = campaign.configuration?.warmupMode?.enabled;
       
-      // Get updated email list stats with GLOBAL sent count
+      // Get sent emails based on warmup mode
+      const sentEmailQuery = isWarmupMode 
+        ? { campaign: campaignId }  // Warmup mode: only this campaign
+        : {};                        // Normal mode: all campaigns
+      
+      const allSentEmails = await SentEmail.find(sentEmailQuery).select('recipient.email');
+      const uniqueSentEmails = new Set(allSentEmails.map(e => e.recipient.email));
+      const alreadySent = uniqueSentEmails.size;
+      
+      // For global stats (always check all campaigns)
+      const globalSentEmails = await SentEmail.find({}).select('recipient.email');
+      const uniqueGlobalSentEmails = new Set(globalSentEmails.map(e => e.recipient.email));
+      const alreadySentGlobal = uniqueGlobalSentEmails.size;
+      
+      // Get updated email list stats
       const emailListStats = {
         ...campaign.campaignPlan.emailListStats,
-        alreadySent: alreadySentGlobal,
-        availableToSend: Math.max(0, (campaign.campaignPlan.emailListStats.totalEmails || 0) - alreadySentGlobal - (campaign.campaignPlan.emailListStats.unsubscribed || 0)),
+        alreadySent: alreadySent,
+        availableToSend: Math.max(0, (campaign.campaignPlan.emailListStats.totalEmails || 0) - alreadySent - (campaign.campaignPlan.emailListStats.unsubscribed || 0)),
         alreadySentGlobal: alreadySentGlobal,
-        availableToSendGlobal: Math.max(0, (campaign.campaignPlan.emailListStats.totalEmails || 0) - alreadySentGlobal - (campaign.campaignPlan.emailListStats.unsubscribed || 0))
+        availableToSendGlobal: Math.max(0, (campaign.campaignPlan.emailListStats.totalEmails || 0) - alreadySentGlobal - (campaign.campaignPlan.emailListStats.unsubscribed || 0)),
+        warmupMode: isWarmupMode
       };
       
       // Calculate today's scheduled and sent
@@ -1088,17 +1109,22 @@ class CampaignOrchestrator {
       currentExecution.completedHours.sort((a, b) => a.hour - b.hour);
       currentExecution.upcomingHours.sort((a, b) => a.hour - b.hour);
 
-      // Get CAMPAIGN-SPECIFIC email list statistics
+      // Get email list statistics based on warmup mode
       
       // Get the email list for this campaign
       const campaignEmailList = await this.getEmailListForCampaign(campaign);
       const campaignEmailSet = new Set(campaignEmailList.map(e => e.toLowerCase().trim()));
       
-      // Get emails sent by THIS campaign only
-      const campaignSentEmails = await SentEmail.find({ 
-        campaign: campaignId 
-      }).select('recipient.email');
-      const sentByCampaignSet = new Set(campaignSentEmails.map(e => e.recipient.email.toLowerCase().trim()));
+      // Check if warmup mode is enabled
+      const isWarmupMode = campaign.configuration?.warmupMode?.enabled;
+      
+      // Get emails sent based on warmup mode
+      const sentEmailQuery = isWarmupMode 
+        ? { campaign: campaignId }  // Warmup mode: only this campaign
+        : {};                        // Normal mode: all campaigns
+      
+      const sentEmails = await SentEmail.find(sentEmailQuery).select('recipient.email');
+      const sentEmailSet = new Set(sentEmails.map(e => e.recipient.email.toLowerCase().trim()));
       
       // Get unsubscribed emails that exist in THIS campaign's email list
       const unsubscribedList = await this.getUnsubscribedList();
@@ -1106,28 +1132,42 @@ class CampaignOrchestrator {
         campaignEmailSet.has(email.toLowerCase().trim())
       );
       
-      // Calculate campaign-specific statistics
+      // Calculate statistics based on warmup mode
       const totalEmails = campaignEmailList.length;
-      const alreadySent = sentByCampaignSet.size;
+      const alreadySent = sentEmailSet.size;
       const unsubscribed = unsubscribedInCampaignList.length;
       const available = Math.max(0, totalEmails - alreadySent - unsubscribed);
       
+      // For global stats (always check all campaigns)
+      const globalSentEmails = await SentEmail.find({}).select('recipient.email');
+      const globalSentEmailSet = new Set(globalSentEmails.map(e => e.recipient.email.toLowerCase().trim()));
+      const alreadySentGlobal = globalSentEmailSet.size;
+      const availableGlobal = Math.max(0, totalEmails - alreadySentGlobal - unsubscribed);
+      
       // Log for debugging
-      logger.info('📊 Campaign-specific email list statistics', {
+      logger.info('📊 Campaign email list statistics', {
         campaignId,
         emailListSource: campaign.configuration.emailListSource,
+        warmupMode: isWarmupMode,
         totalEmails,
         alreadySent,
         unsubscribed,
         available,
-        calculation: `${totalEmails} - ${alreadySent} - ${unsubscribed} = ${available}`
+        alreadySentGlobal,
+        availableGlobal,
+        calculation: isWarmupMode 
+          ? `Warmup: ${totalEmails} - ${alreadySent} (campaign) - ${unsubscribed} = ${available}`
+          : `Normal: ${totalEmails} - ${alreadySent} (global) - ${unsubscribed} = ${available}`
       });
       
       const emailListStats = {
         totalEmails,
         alreadySent,
         unsubscribed,
-        availableToSend: available
+        availableToSend: available,
+        alreadySentGlobal,
+        availableToSendGlobal: availableGlobal,
+        warmupMode: isWarmupMode
       };
 
       return {
@@ -1233,28 +1273,52 @@ class CampaignOrchestrator {
       });
       
       // If we've reached the end of the list, restart from beginning
+      // This ensures the list cycles continuously
       if (currentIndex >= recipients.length) {
-        logger.info('🔄 Warmup mode: Restarting from beginning of list');
+        logger.info('🔄 Warmup mode: Reached end of list, restarting cycle', {
+          campaignId: campaign._id,
+          currentIndex,
+          totalRecipients: recipients.length
+        });
+        
+        // Reset the index to start from beginning
         await Campaign.findByIdAndUpdate(campaign._id, {
           'configuration.warmupMode.currentIndex': 0
         });
+        
+        // Delete all sent emails for this campaign to clean up the cycle
+        // This ensures the campaign can start fresh in the next iteration
+        const deletedCount = await SentEmail.deleteMany({ campaign: campaign._id });
+        
+        logger.info('✅ Warmup mode: Cycle reset complete', {
+          campaignId: campaign._id,
+          deletedSentEmails: deletedCount.deletedCount,
+          nextBatchSize: Math.min(dailyPlanTotal, recipients.length)
+        });
+        
+        // Return the first batch from the beginning
         return recipients.slice(0, dailyPlanTotal);
       }
       
-      // Get the next batch of recipients
+      // Get the next batch of recipients starting from currentIndex
       const endIndex = Math.min(currentIndex + dailyPlanTotal, recipients.length);
       const selectedRecipients = recipients.slice(currentIndex, endIndex);
       
       // Update the current index for next run
+      // If we've reached the end, it will be >= recipients.length and trigger reset next time
       await Campaign.findByIdAndUpdate(campaign._id, {
         'configuration.warmupMode.currentIndex': endIndex
       });
       
+      const willRestart = endIndex >= recipients.length;
+      
       logger.info('🔥 Warmup mode applied', {
         campaignId: campaign._id,
         selectedCount: selectedRecipients.length,
+        currentIndex,
         nextIndex: endIndex,
-        willRestart: endIndex >= recipients.length
+        willRestart: willRestart,
+        progress: `${endIndex}/${recipients.length}`
       });
       
       return selectedRecipients;
