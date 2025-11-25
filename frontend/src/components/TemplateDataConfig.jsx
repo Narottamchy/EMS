@@ -23,15 +23,21 @@ const TemplateDataConfig = ({ campaignId, onSave, onCancel }) => {
       setLoading(true);
       setError(null);
       const response = await campaignAPI.getTemplateFields(campaignId);
-      
+
       if (response.data.templatesData) {
         setTemplatesData(response.data.templatesData);
       }
-      
+
+      // Log CSV columns detection for debugging
+      if (response.data.csvColumns) {
+        console.log('📊 CSV Columns detected:', response.data.csvColumns);
+      }
+
       if (response.data.variables) {
+        console.log('📋 Variables loaded:', response.data.variables);
         setVariables(response.data.variables);
         setHasVariables(response.data.hasVariables || false);
-        
+
         // Initialize template data with default values
         const defaultData = {};
         response.data.variables.forEach(variable => {
@@ -62,7 +68,7 @@ const TemplateDataConfig = ({ campaignId, onSave, onCancel }) => {
     }
 
     const customVarName = newCustomVariable.name.trim().replace(/\s+/g, '');
-    
+
     // Check if variable already exists
     if (templateData[customVarName] !== undefined) {
       alert('Variable already exists!');
@@ -185,11 +191,10 @@ const TemplateDataConfig = ({ campaignId, onSave, onCancel }) => {
                 <button
                   key={index}
                   onClick={() => setActiveTab(index)}
-                  className={`px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap ${
-                    activeTab === index
+                  className={`px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === index
                       ? 'border-b-2 border-white/20 text-white'
                       : 'text-muted hover:text-white'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4" />
@@ -210,11 +215,10 @@ const TemplateDataConfig = ({ campaignId, onSave, onCancel }) => {
         {templatesData[activeTab] && (
           <div className="mb-6 bg-white/5 rounded-lg p-4">
             <div className="flex items-start gap-3">
-              <div className={`p-2 rounded-lg ${
-                templatesData[activeTab].status === 'found' 
-                  ? 'bg-white/10 text-white' 
+              <div className={`p-2 rounded-lg ${templatesData[activeTab].status === 'found'
+                  ? 'bg-white/10 text-white'
                   : 'bg-red-100 text-red-600'
-              }`}>
+                }`}>
                 {templatesData[activeTab].status === 'found' ? (
                   <Check className="w-5 h-5" />
                 ) : (
@@ -250,7 +254,7 @@ const TemplateDataConfig = ({ campaignId, onSave, onCancel }) => {
               No Dynamic Variables Found
             </h3>
             <p className="text-muted mb-6">
-              None of your selected templates contain dynamic variables ({"{{variableName}}"}). 
+              None of your selected templates contain dynamic variables ({"{{variableName}}"}).
               You can still add custom variables if needed.
             </p>
           </div>
@@ -298,18 +302,16 @@ const TemplateDataConfig = ({ campaignId, onSave, onCancel }) => {
                           <button
                             key={index}
                             onClick={() => handleVariableChange(variable.name, suggestion.value)}
-                            className={`p-3 text-left border rounded-xl transition-all ${
-                              templateData[variable.name] === suggestion.value
+                            className={`p-3 text-left border rounded-xl transition-all ${templateData[variable.name] === suggestion.value
                                 ? 'border-primary bg-primary/5 text-primary shadow-soft'
                                 : 'border-border hover:border-primary/30 hover:bg-white/5'
-                            }`}
+                              }`}
                           >
                             <div className="flex items-center gap-2 mb-1">
-                              <span className={`text-xs px-2 py-1 rounded ${
-                                suggestion.type === 'static' 
-                                  ? 'bg-white/5 text-muted' 
+                              <span className={`text-xs px-2 py-1 rounded ${suggestion.type === 'static'
+                                  ? 'bg-white/5 text-muted'
                                   : 'bg-white/10 text-white'
-                              }`}>
+                                }`}>
                                 {suggestion.type}
                               </span>
                             </div>

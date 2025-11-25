@@ -867,7 +867,7 @@ exports.simulateDailyPlan = async (req, res) => {
   try {
     const { id } = req.params;
     const { day = 1, totalRecipients = 450000 } = req.query;
-    
+
     const campaign = await Campaign.findById(id);
     if (!campaign) {
       return res.status(404).json({
@@ -879,51 +879,51 @@ exports.simulateDailyPlan = async (req, res) => {
     const config = campaign.configuration;
     const dayNumber = parseInt(day);
     const totalRecipientsCount = parseInt(totalRecipients);
-    
+
     // Get the actual CampaignOrchestrator instance
     const orchestrator = require('../services/CampaignOrchestrator');
-    
+
     // Generate daily plan using the actual function
     const dailyPlan = orchestrator.generateDailyPlan(config, dayNumber, totalRecipientsCount);
-    
+
     // Get sender emails (custom or generated)
     const senderEmails = orchestrator.generateSenderEmails(config);
-    
-        // Format the plan for frontend with minute-level details
-        const formattedPlan = {
-          day: dailyPlan.day,
-          date: new Date(Date.now() + (dayNumber - 1) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          totalEmails: dailyPlan.totalEmails,
-          domains: dailyPlan.domains.map(domainPlan => ({
-            domain: domainPlan.domain,
-            totalEmails: domainPlan.totalEmails,
-            senders: domainPlan.emails.map(emailPlan => ({
-              email: emailPlan.email,
-              totalEmails: emailPlan.totalEmails,
-              hours: emailPlan.hours.map(h => ({
-                hour: h.hour,
-                count: h.count,
-                timeLabel: `${h.hour.toString().padStart(2, '0')}:00`,
-                minuteDistribution: h.minutes ? h.minutes.map((count, minute) => ({
-                  minute,
-                  count,
-                  timeLabel: `${h.hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
-                })).filter(m => m.count > 0) : []
-              }))
-            }))
-          })),
-          senderEmails: senderEmails,
-          configuration: {
-            baseDailyTotal: config.baseDailyTotal,
-            maxEmailPercentage: config.maxEmailPercentage,
-            randomizationIntensity: config.randomizationIntensity,
-            domains: config.domains,
-            emailsPerDomain: orchestrator.calculateEmailsPerDomain(config),
-            customSenderEmails: config.senderEmails || [],
-            quotaDays: config.quotaDays || 30,
-            targetSum: config.targetSum || 450000
-          }
-        };
+
+    // Format the plan for frontend with minute-level details
+    const formattedPlan = {
+      day: dailyPlan.day,
+      date: new Date(Date.now() + (dayNumber - 1) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      totalEmails: dailyPlan.totalEmails,
+      domains: dailyPlan.domains.map(domainPlan => ({
+        domain: domainPlan.domain,
+        totalEmails: domainPlan.totalEmails,
+        senders: domainPlan.emails.map(emailPlan => ({
+          email: emailPlan.email,
+          totalEmails: emailPlan.totalEmails,
+          hours: emailPlan.hours.map(h => ({
+            hour: h.hour,
+            count: h.count,
+            timeLabel: `${h.hour.toString().padStart(2, '0')}:00`,
+            minuteDistribution: h.minutes ? h.minutes.map((count, minute) => ({
+              minute,
+              count,
+              timeLabel: `${h.hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+            })).filter(m => m.count > 0) : []
+          }))
+        }))
+      })),
+      senderEmails: senderEmails,
+      configuration: {
+        baseDailyTotal: config.baseDailyTotal,
+        maxEmailPercentage: config.maxEmailPercentage,
+        randomizationIntensity: config.randomizationIntensity,
+        domains: config.domains,
+        emailsPerDomain: orchestrator.calculateEmailsPerDomain(config),
+        customSenderEmails: config.senderEmails || [],
+        quotaDays: config.quotaDays || 30,
+        targetSum: config.targetSum || 450000
+      }
+    };
 
     // Calculate growth metrics for this day
     const growthFactor = 1 + (dayNumber - 1) * 0.1; // 10% growth per day
@@ -975,7 +975,7 @@ exports.simulateDailyPlan = async (req, res) => {
 exports.regenerateCampaignPlan = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const campaign = await Campaign.findById(id);
     if (!campaign) {
       return res.status(404).json({
@@ -1019,8 +1019,8 @@ exports.regenerateCampaignPlan = async (req, res) => {
 exports.getTemplateFields = async (req, res) => {
   try {
     const { id } = req.params;
-    
-    const campaign = await Campaign.findById(id);
+
+    const campaign = await Campaign.findById(id).populate('configuration.customEmailListId');
     if (!campaign) {
       return res.status(404).json({
         success: false,
@@ -1029,8 +1029,8 @@ exports.getTemplateFields = async (req, res) => {
     }
 
     // Get all templates for this campaign
-    const templates = campaign.templateNames && campaign.templateNames.length > 0 
-      ? campaign.templateNames 
+    const templates = campaign.templateNames && campaign.templateNames.length > 0
+      ? campaign.templateNames
       : [campaign.templateName];
 
     const EmailService = require('../services/EmailService');
@@ -1041,7 +1041,7 @@ exports.getTemplateFields = async (req, res) => {
     for (const templateName of templates) {
       try {
         const template = await EmailService.getTemplate(templateName);
-        
+
         if (!template) {
           templatesData.push({
             name: templateName,
@@ -1067,9 +1067,9 @@ exports.getTemplateFields = async (req, res) => {
               templates: []
             });
           }
-          
+
           allVariables.get(variableName).templates.push(templateName);
-          
+
           if (!templateVariables.find(v => v.name === variableName)) {
             templateVariables.push({
               name: variableName,
@@ -1095,8 +1095,47 @@ exports.getTemplateFields = async (req, res) => {
       }
     }
 
+    // Detect CSV columns for this campaign
+    const csvColumns = await detectCsvColumns(campaign);
+
+    logger.info('🔍 CSV columns detection result', {
+      campaignId: id,
+      csvColumns,
+      hasCodeColumn: csvColumns.hasCode
+    });
+
     // Convert Map to Array
     const variables = Array.from(allVariables.values());
+
+    // Add code variable if it exists in CSV and not already in template
+    if (csvColumns.hasCode && !allVariables.has('code')) {
+      logger.info('➕ Adding code variable to template fields', {
+        campaignId: id,
+        reason: 'Code column detected in CSV'
+      });
+
+      variables.push({
+        name: 'code',
+        type: 'text',
+        description: 'Unique code from email list (dynamic)',
+        suggestions: getVariableSuggestions('code'),
+        templates: [],
+        fromCsv: true
+      });
+    } else {
+      logger.info('⏭️ Skipping code variable', {
+        campaignId: id,
+        hasCodeColumn: csvColumns.hasCode,
+        alreadyInTemplate: allVariables.has('code')
+      });
+    }
+
+    logger.info('📤 Sending template fields response', {
+      campaignId: id,
+      variableCount: variables.length,
+      variableNames: variables.map(v => v.name),
+      csvColumns
+    });
 
     res.json({
       success: true,
@@ -1104,7 +1143,8 @@ exports.getTemplateFields = async (req, res) => {
         templates: templates,
         templatesData: templatesData,
         variables: variables,
-        hasVariables: variables.length > 0
+        hasVariables: variables.length > 0,
+        csvColumns: csvColumns
       }
     });
   } catch (error) {
@@ -1117,10 +1157,127 @@ exports.getTemplateFields = async (req, res) => {
   }
 };
 
+// Helper function to detect CSV columns
+async function detectCsvColumns(campaign) {
+  try {
+    const AWS = require('aws-sdk');
+    const csv = require('csv-parser');
+
+    const s3 = new AWS.S3({
+      region: process.env.AWS_REGION || 'us-east-1'
+    });
+
+    // Determine which email list to check (global or custom)
+    let s3Key;
+    if (campaign.configuration.emailListSource === 'custom' && campaign.configuration.customEmailListId) {
+      const EmailList = require('../models/EmailList');
+      const emailList = await EmailList.findById(campaign.configuration.customEmailListId);
+      if (emailList && emailList.isActive) {
+        s3Key = emailList.s3Key;
+      } else {
+        s3Key = process.env.EMAIL_LIST_KEY;
+      }
+    } else {
+      s3Key = process.env.EMAIL_LIST_KEY;
+    }
+
+    const params = {
+      Bucket: process.env.S3_BUCKET,
+      Key: s3Key
+    };
+
+    logger.info('📧 Detecting CSV columns', {
+      bucket: process.env.S3_BUCKET,
+      key: s3Key,
+      campaignId: campaign._id
+    });
+
+    const stream = s3.getObject(params).createReadStream();
+    const columns = {
+      hasEmail: false,
+      hasCode: false,
+      hasUrl: false,
+      detectedColumns: []
+    };
+
+    return new Promise((resolve, reject) => {
+      let firstRow = true;
+      let rowCount = 0;
+
+      stream
+        .pipe(csv())
+        .on('data', (row) => {
+          rowCount++;
+          if (firstRow) {
+            const columnNames = Object.keys(row);
+            columns.detectedColumns = columnNames;
+
+            // Check for email column (case-insensitive)
+            columns.hasEmail = columnNames.some(col =>
+              col.toLowerCase() === 'email'
+            );
+
+            // Check for code column (case-insensitive)
+            columns.hasCode = columnNames.some(col =>
+              col.toLowerCase() === 'code'
+            );
+
+            // Check for url column (case-insensitive)
+            columns.hasUrl = columnNames.some(col =>
+              col.toLowerCase() === 'url'
+            );
+
+            logger.info('📊 CSV columns detected', {
+              ...columns,
+              campaignId: campaign._id
+            });
+
+            firstRow = false;
+            // We only need the first row, so destroy the stream
+            stream.destroy();
+            resolve(columns);
+          }
+        })
+        .on('end', () => {
+          if (rowCount === 0) {
+            logger.warn('⚠️ CSV file is empty', { campaignId: campaign._id });
+          }
+          resolve(columns);
+        })
+        .on('error', (error) => {
+          logger.error('❌ Failed to detect CSV columns:', {
+            error: error.message,
+            campaignId: campaign._id
+          });
+          // Return default columns on error
+          resolve({
+            hasEmail: true,
+            hasCode: false,
+            hasUrl: false,
+            detectedColumns: []
+          });
+        });
+    });
+
+  } catch (error) {
+    logger.error('❌ Failed to detect CSV columns (outer catch):', {
+      error: error.message,
+      stack: error.stack
+    });
+    // Return default columns on error
+    return {
+      hasEmail: true,
+      hasCode: false,
+      hasUrl: false,
+      detectedColumns: []
+    };
+  }
+}
+
 // Helper function to determine variable type
 function getVariableType(variableName) {
   const lowerName = variableName.toLowerCase();
-  
+
   if (lowerName.includes('email') || lowerName.includes('recipient')) {
     return 'email';
   } else if (lowerName.includes('name') || lowerName.includes('handle')) {
@@ -1129,6 +1286,8 @@ function getVariableType(variableName) {
     return 'url';
   } else if (lowerName.includes('day') || lowerName.includes('date')) {
     return 'number';
+  } else if (lowerName.includes('code')) {
+    return 'text';
   } else {
     return 'text';
   }
@@ -1137,7 +1296,7 @@ function getVariableType(variableName) {
 // Helper function to get variable description
 function getVariableDescription(variableName) {
   const lowerName = variableName.toLowerCase();
-  
+
   if (lowerName.includes('recipientname')) {
     return 'Recipient\'s name (extracted from email)';
   } else if (lowerName.includes('recipientemail')) {
@@ -1150,6 +1309,8 @@ function getVariableDescription(variableName) {
     return 'URL (can be static or dynamic)';
   } else if (lowerName.includes('day')) {
     return 'Campaign day number';
+  } else if (lowerName.includes('code')) {
+    return 'Unique code from email list (dynamic)';
   } else {
     return `Template variable: ${variableName}`;
   }
@@ -1158,7 +1319,7 @@ function getVariableDescription(variableName) {
 // Helper function to get variable suggestions
 function getVariableSuggestions(variableName) {
   const lowerName = variableName.toLowerCase();
-  
+
   if (lowerName.includes('instahandle')) {
     return [
       { type: 'static', value: '@yourhandle', description: 'Static Instagram handle' },
@@ -1175,6 +1336,11 @@ function getVariableSuggestions(variableName) {
     return [
       { type: 'dynamic', value: '{{recipientEmail}}', description: 'Extract name from email' }
     ];
+  } else if (lowerName.includes('code')) {
+    return [
+      { type: 'dynamic', value: '{{code}}', description: 'Use unique code from email list (CSV column)' },
+      { type: 'static', value: 'STATIC-CODE-123', description: 'Use a static code for all recipients' }
+    ];
   } else {
     return [
       { type: 'static', value: 'Your value', description: 'Enter a static value' },
@@ -1189,7 +1355,7 @@ exports.saveTemplateData = async (req, res) => {
   try {
     const { id } = req.params;
     const { templateData } = req.body;
-    
+
     const campaign = await Campaign.findById(id);
     if (!campaign) {
       return res.status(404).json({

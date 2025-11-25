@@ -148,8 +148,8 @@ class CampaignOrchestrator {
       const unsubscribedList = await this.getUnsubscribedList();
       const unsubscribedSet = new Set(unsubscribedList);
 
-      let recipientsToSend = emailList.filter(email =>
-        !sentEmailSet.has(email) && !unsubscribedSet.has(email)
+      let recipientsToSend = emailList.filter(item =>
+        !sentEmailSet.has(item.email) && !unsubscribedSet.has(item.email)
       );
 
       logger.info('📊 Email filtering results', {
@@ -175,7 +175,7 @@ class CampaignOrchestrator {
         });
 
         // Recalculate available recipients (all emails minus unsubscribed)
-        recipientsToSend = emailList.filter(email => !unsubscribedSet.has(email));
+        recipientsToSend = emailList.filter(item => !unsubscribedSet.has(item.email));
 
         logger.info('✅ Warmup mode: Reset complete', {
           campaignId,
@@ -216,8 +216,8 @@ class CampaignOrchestrator {
       // Calculate global stats (across ALL campaigns) for comparison
       const globalSentEmails = await SentEmail.find({}).select('recipient.email');
       const globalSentEmailSet = new Set(globalSentEmails.map(e => e.recipient.email));
-      const globalAvailable = emailList.filter(email =>
-        !globalSentEmailSet.has(email) && !unsubscribedSet.has(email)
+      const globalAvailable = emailList.filter(item =>
+        !globalSentEmailSet.has(item.email) && !unsubscribedSet.has(item.email)
       ).length;
 
       // Store campaign plan with both campaign-specific and global stats
@@ -298,7 +298,9 @@ class CampaignOrchestrator {
             for (let i = 0; i < emailsThisMinute; i++) {
               if (recipientIndex >= recipients.length) break;
 
-              const recipient = recipients[recipientIndex++];
+              const recipientData = recipients[recipientIndex++];
+              const recipient = recipientData.email;
+              const recipientCode = recipientData.code;
               const recipientDomain = recipient.split('@')[1];
 
               const currentUTCHour = now.getUTCHours();
@@ -339,6 +341,26 @@ class CampaignOrchestrator {
               // Randomly select a template if multiple templates are available
               const selectedTemplate = this.getRandomTemplate(campaign);
 
+              // Build template data with code if available
+              const templateData = {
+                recipientName: recipient.split('@')[0],
+                recipientEmail: recipient,
+                campaignName: campaign.name,
+                day: campaign.progress.currentDay,
+                ...this.processTemplateData(campaign.configuration?.templateData || {}, {
+                  recipientName: recipient.split('@')[0],
+                  recipientEmail: recipient,
+                  campaignName: campaign.name,
+                  day: campaign.progress.currentDay,
+                  code: recipientCode || ''
+                })
+              };
+
+              // Add code to template data if it exists
+              if (recipientCode) {
+                templateData.code = recipientCode;
+              }
+
               emailJobs.push({
                 campaignId: campaign._id,
                 recipient: {
@@ -350,18 +372,7 @@ class CampaignOrchestrator {
                   domain: domainPlan.domain
                 },
                 templateName: selectedTemplate,
-                templateData: {
-                  recipientName: recipient.split('@')[0],
-                  recipientEmail: recipient,
-                  campaignName: campaign.name,
-                  day: campaign.progress.currentDay,
-                  ...this.processTemplateData(campaign.configuration?.templateData || {}, {
-                    recipientName: recipient.split('@')[0],
-                    recipientEmail: recipient,
-                    campaignName: campaign.name,
-                    day: campaign.progress.currentDay
-                  })
-                },
+                templateData: templateData,
                 metadata: {
                   day: campaign.progress.currentDay,
                   hour: hourPlan.hour,
@@ -690,8 +701,8 @@ class CampaignOrchestrator {
         const unsubscribedList = await this.getUnsubscribedList();
         const unsubscribedSet = new Set(unsubscribedList);
 
-        let recipientsToSend = emailList.filter(email =>
-          !sentEmailSet.has(email) && !unsubscribedSet.has(email)
+        let recipientsToSend = emailList.filter(item =>
+          !sentEmailSet.has(item.email) && !unsubscribedSet.has(item.email)
         );
 
         // In warmup mode, if we've exhausted the list, reset and start over
@@ -707,7 +718,7 @@ class CampaignOrchestrator {
           });
 
           // Recalculate available recipients (all emails minus unsubscribed)
-          recipientsToSend = emailList.filter(email => !unsubscribedSet.has(email));
+          recipientsToSend = emailList.filter(item => !unsubscribedSet.has(item.email));
 
           logger.info('✅ Warmup mode (resume): Reset complete', {
             campaignId,
@@ -756,32 +767,50 @@ class CampaignOrchestrator {
       });
 
       const stream = this.s3.getObject(params).createReadStream();
-      const emails = [];
+      const emailData = [];
 
       return new Promise((resolve, reject) => {
         let firstRow = true;
+        let hasCodeColumn = false;
+
         stream
           .pipe(csv())
           .on('data', (row) => {
             // Log the first row to see column names
             if (firstRow) {
-              logger.info('📧 CSV columns found:', Object.keys(row));
+              const columnNames = Object.keys(row);
+              logger.info('📧 CSV columns found:', columnNames);
+
+              // Check if code column exists (case-insensitive)
+              hasCodeColumn = columnNames.some(col => col.toLowerCase() === 'code');
+              logger.info(`📊 Code column ${hasCodeColumn ? 'found' : 'not found'} in CSV`);
+
               firstRow = false;
             }
 
             // Check for different possible column names
             const email = row.email || row.Email || row.EMAIL;
+            const code = row.code || row.Code || row.CODE;
+
             if (email) {
-              emails.push(email.toLowerCase().trim());
+              emailData.push({
+                email: email.toLowerCase().trim(),
+                code: code ? code.trim() : null
+              });
             }
           })
           .on('end', () => {
-            const uniqueEmails = [...new Set(emails)]; // Remove duplicates
+            // Remove duplicates based on email
+            const uniqueEmailData = Array.from(
+              new Map(emailData.map(item => [item.email, item])).values()
+            );
+
             logger.info('📧 Email list loaded successfully', {
-              totalEmails: uniqueEmails.length,
-              sampleEmails: uniqueEmails.slice(0, 5)
+              totalEmails: uniqueEmailData.length,
+              hasCodeColumn,
+              sampleData: uniqueEmailData.slice(0, 3)
             });
-            resolve(uniqueEmails);
+            resolve(uniqueEmailData);
           })
           .on('error', (error) => {
             logger.error('❌ Failed to read email list from S3:', error);
@@ -1117,7 +1146,7 @@ class CampaignOrchestrator {
 
       // Get the email list for this campaign
       const campaignEmailList = await this.getEmailListForCampaign(campaign);
-      const campaignEmailSet = new Set(campaignEmailList.map(e => e.toLowerCase().trim()));
+      const campaignEmailSet = new Set(campaignEmailList.map(item => item.email.toLowerCase().trim()));
 
       // Check if warmup mode is enabled
       const isWarmupMode = campaign.configuration?.warmupMode?.enabled;
@@ -1216,21 +1245,46 @@ class CampaignOrchestrator {
         });
 
         const stream = this.s3.getObject(params).createReadStream();
-        const emails = [];
+        const emailData = [];
 
         return new Promise((resolve, reject) => {
+          let firstRow = true;
+          let hasCodeColumn = false;
+
           stream
             .pipe(csv())
             .on('data', (row) => {
+              // Log the first row to see column names
+              if (firstRow) {
+                const columnNames = Object.keys(row);
+                logger.info('📧 Custom CSV columns found:', columnNames);
+
+                // Check if code column exists (case-insensitive)
+                hasCodeColumn = columnNames.some(col => col.toLowerCase() === 'code');
+                logger.info(`📊 Code column ${hasCodeColumn ? 'found' : 'not found'} in custom CSV`);
+
+                firstRow = false;
+              }
+
               const email = row.email || row.Email || row.EMAIL;
+              const code = row.code || row.Code || row.CODE;
+
               if (email) {
-                emails.push(email.toLowerCase().trim());
+                emailData.push({
+                  email: email.toLowerCase().trim(),
+                  code: code ? code.trim() : null
+                });
               }
             })
             .on('end', () => {
-              const uniqueEmails = [...new Set(emails)];
+              // Remove duplicates based on email
+              const uniqueEmailData = Array.from(
+                new Map(emailData.map(item => [item.email, item])).values()
+              );
+
               logger.info('📧 Custom email list loaded', {
-                totalEmails: uniqueEmails.length,
+                totalEmails: uniqueEmailData.length,
+                hasCodeColumn,
                 listName: emailList.name
               });
 
@@ -1240,7 +1294,7 @@ class CampaignOrchestrator {
                 $inc: { 'metadata.usageCount': 1 }
               }).catch(err => logger.error('Failed to update email list metadata:', err));
 
-              resolve(uniqueEmails);
+              resolve(uniqueEmailData);
             })
             .on('error', (error) => {
               logger.error('❌ Failed to read custom email list from S3:', error);
