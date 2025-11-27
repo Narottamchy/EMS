@@ -13,6 +13,7 @@ exports.handleSESWebhook = async (req, res) => {
             logger.info('🔔 Received SNS Subscription Confirmation');
             const subscribeUrl = body.SubscribeURL;
             if (subscribeUrl) {
+                logger.info('Subscribing to SNS topic', { subscribeUrl });
                 await axios.get(subscribeUrl);
                 logger.info('✅ Confirmed SNS subscription');
                 return res.status(200).send('Confirmed');
