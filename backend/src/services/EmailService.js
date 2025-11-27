@@ -8,7 +8,7 @@ class EmailService {
       accessKeyId: process.env.AWS_ACCESS_KEY_ID,
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
     });
-    
+
     this.rateLimiter = {
       requests: [],
       maxRequests: 14,
@@ -16,7 +16,7 @@ class EmailService {
     };
   }
 
-  async sendEmail({ to, from, subject, htmlBody, textBody, templateData = {} }) {
+  async sendEmail({ to, from, subject, htmlBody, textBody, templateData = {}, campaignId = null }) {
     try {
       let processedHtml = htmlBody;
       let processedText = textBody || '';
@@ -53,12 +53,22 @@ class EmailService {
         ConfigurationSetName: process.env.SES_CONFIGURATION_SET || undefined
       };
 
+      if (campaignId) {
+        params.Tags = [
+          {
+            Name: 'X-Campaign-ID',
+            Value: campaignId.toString()
+          }
+        ];
+      }
+
       const result = await this.ses.sendEmail(params).promise();
 
       logger.debug('📧 Email sent successfully', {
         to,
         from,
-        messageId: result.MessageId
+        messageId: result.MessageId,
+        campaignId
       });
 
       return result;
@@ -67,13 +77,14 @@ class EmailService {
       logger.error('❌ Failed to send email:', {
         to,
         from,
-        error: error.message
+        error: error.message,
+        campaignId
       });
       throw error;
     }
   }
 
-  async sendTemplatedEmail({ to, from, templateName, templateData = {} }) {
+  async sendTemplatedEmail({ to, from, templateName, templateData = {}, campaignId = null }) {
     try {
       const params = {
         Source: from,
@@ -85,13 +96,23 @@ class EmailService {
         ConfigurationSetName: process.env.SES_CONFIGURATION_SET || undefined
       };
 
+      if (campaignId) {
+        params.Tags = [
+          {
+            Name: 'X-Campaign-ID',
+            Value: campaignId.toString()
+          }
+        ];
+      }
+
       const result = await this.ses.sendTemplatedEmail(params).promise();
 
       logger.debug('📧 Templated email sent successfully', {
         to,
         from,
         template: templateName,
-        messageId: result.MessageId
+        messageId: result.MessageId,
+        campaignId
       });
 
       return result;
@@ -101,16 +122,17 @@ class EmailService {
         to,
         from,
         template: templateName,
-        error: error.message
+        error: error.message,
+        campaignId
       });
       throw error;
     }
   }
 
-  async sendEmailWithTemplate({ to, from, templateName, templateData = {}, enableListUnsubscribe = false, unsubscribeUrl = null }) {
+  async sendEmailWithTemplate({ to, from, templateName, templateData = {}, enableListUnsubscribe = false, unsubscribeUrl = null, campaignId = null }) {
     try {
       await this.applyRateLimit();
-      
+
       // If List-Unsubscribe is enabled, use raw email with headers
       if (enableListUnsubscribe && unsubscribeUrl) {
         return await this.sendRawEmailWithListUnsubscribe({
@@ -118,10 +140,11 @@ class EmailService {
           from,
           templateName,
           templateData,
-          unsubscribeUrl
+          unsubscribeUrl,
+          campaignId
         });
       }
-      
+
       const params = {
         Source: from,
         Destination: {
@@ -132,13 +155,23 @@ class EmailService {
         ConfigurationSetName: process.env.SES_CONFIGURATION_SET || undefined
       };
 
+      if (campaignId) {
+        params.Tags = [
+          {
+            Name: 'X-Campaign-ID',
+            Value: campaignId.toString()
+          }
+        ];
+      }
+
       const result = await this.ses.sendTemplatedEmail(params).promise();
 
       logger.debug('📧 Email sent with SES template', {
         to,
         from,
         template: templateName,
-        messageId: result.MessageId
+        messageId: result.MessageId,
+        campaignId
       });
 
       return result;
@@ -148,33 +181,34 @@ class EmailService {
         to,
         from,
         template: templateName,
-        error: error.message
+        error: error.message,
+        campaignId
       });
       throw error;
     }
   }
 
-  async sendRawEmailWithListUnsubscribe({ to, from, templateName, templateData = {}, unsubscribeUrl }) {
+  async sendRawEmailWithListUnsubscribe({ to, from, templateName, templateData = {}, unsubscribeUrl, campaignId = null }) {
     try {
       await this.applyRateLimit();
-      
+
       // Step 1: Fetch the SES template
       const SESTemplateService = require('./SESTemplateService');
       const template = await SESTemplateService.getTemplate(templateName);
       let htmlBody = template.Template.HtmlPart;
       let subject = template.Template.SubjectPart;
-      
+
       // Step 2: Replace template variables in HTML and subject
       Object.keys(templateData).forEach(key => {
         const regex = new RegExp(`{{${key}}}`, 'g');
         htmlBody = htmlBody.replace(regex, templateData[key]);
         subject = subject.replace(regex, templateData[key]);
       });
-      
+
       // Step 3: Replace {{recipientEmail}} in unsubscribe URL if present
       const finalUnsubscribeUrl = unsubscribeUrl.replace(/{{recipientEmail}}/g, to);
       const mailtoUnsubscribe = `mailto:unsubscribe@${from.split('@')[1]}?subject=Unsubscribe`;
-      
+
       // Step 4: Construct the raw email with custom headers
       const rawMessage = `From: ${from}
 To: ${to}
@@ -197,6 +231,15 @@ ${htmlBody}
         ConfigurationSetName: process.env.SES_CONFIGURATION_SET || undefined
       };
 
+      if (campaignId) {
+        params.Tags = [
+          {
+            Name: 'X-Campaign-ID',
+            Value: campaignId.toString()
+          }
+        ];
+      }
+
       const result = await this.ses.sendRawEmail(params).promise();
 
       logger.debug('📧 Email sent with List-Unsubscribe headers', {
@@ -204,7 +247,8 @@ ${htmlBody}
         from,
         template: templateName,
         messageId: result.MessageId,
-        unsubscribeUrl: finalUnsubscribeUrl
+        unsubscribeUrl: finalUnsubscribeUrl,
+        campaignId
       });
 
       return result;
@@ -214,7 +258,8 @@ ${htmlBody}
         to,
         from,
         template: templateName,
-        error: error.message
+        error: error.message,
+        campaignId
       });
       throw error;
     }
@@ -278,21 +323,21 @@ ${htmlBody}
 
   async applyRateLimit() {
     const now = Date.now();
-    
+
     this.rateLimiter.requests = this.rateLimiter.requests.filter(
       time => now - time < this.rateLimiter.windowMs
     );
-    
+
     if (this.rateLimiter.requests.length >= this.rateLimiter.maxRequests) {
       const oldestRequest = Math.min(...this.rateLimiter.requests);
       const waitTime = this.rateLimiter.windowMs - (now - oldestRequest);
-      
+
       if (waitTime > 0) {
         await new Promise(resolve => setTimeout(resolve, waitTime));
         return this.applyRateLimit();
       }
     }
-    
+
     this.rateLimiter.requests.push(now);
   }
 
@@ -303,7 +348,7 @@ ${htmlBody}
       };
 
       const result = await this.ses.getTemplate(params).promise();
-      
+
       return {
         TemplateName: result.Template.TemplateName,
         SubjectPart: result.Template.SubjectPart,
@@ -341,9 +386,9 @@ ${htmlBody}
             }).promise();
 
             const verificationStatus = attributes.VerificationAttributes[domain]?.VerificationStatus || 'Unknown';
-            
+
             logger.debug(`Domain ${domain} verification status: ${verificationStatus}`);
-            
+
             return {
               domain,
               verificationStatus,

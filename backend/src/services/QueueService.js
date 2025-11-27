@@ -190,7 +190,8 @@ class QueueService {
         templateName: templateName,
         templateData: templateData,
         enableListUnsubscribe: campaignDoc.configuration?.enableListUnsubscribe || false,
-        unsubscribeUrl: campaignDoc.configuration?.unsubscribeUrl || null
+        unsubscribeUrl: campaignDoc.configuration?.unsubscribeUrl || null,
+        campaignId: campaignId
       });
 
       const processingTime = Date.now() - startTime;
@@ -207,7 +208,7 @@ class QueueService {
       }, { new: true });
 
       await AnalyticsService.recordEmailSent(campaignId, metadata.day, metadata.hour, sender.email, recipient.domain);
-      
+
       // Track daily stats
       await this.updateDailyStats(campaignId, 'sent', sender.email, sender.domain, recipient.domain, metadata.hour, metadata.day);
       if (this.io && campaign && campaign.progress) {
@@ -253,7 +254,7 @@ class QueueService {
       const campaign = await Campaign.findByIdAndUpdate(campaignId, {
         $inc: { 'progress.totalFailed': 1 }
       }, { new: true });
-      
+
       // Track daily stats for failed emails
       await this.updateDailyStats(campaignId, 'failed', sender.email, sender.domain, recipient.domain, metadata.hour, metadata.day);
 

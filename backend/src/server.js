@@ -18,6 +18,7 @@ const campaignRoutes = require('./routes/campaign.routes');
 const templateRoutes = require('./routes/template.routes');
 const emailRoutes = require('./routes/email.routes');
 const emailListRoutes = require('./routes/emailList.routes');
+const webhookRoutes = require('./routes/webhook.routes');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -57,6 +58,8 @@ app.get('/health', (req, res) => {
 });
 
 const API_PREFIX = process.env.API_PREFIX || '/api/v1';
+
+app.use('/webhooks', webhookRoutes);
 
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(`${API_PREFIX}/campaigns`, campaignRoutes);
@@ -115,7 +118,7 @@ const startServer = async () => {
     // Create default admin user if not exists
     const User = require('./models/User');
     const adminExists = await User.findOne({ role: 'admin' });
-    
+
     if (!adminExists) {
       const admin = new User({
         name: process.env.ADMIN_NAME || 'Admin',
