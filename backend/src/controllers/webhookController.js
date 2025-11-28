@@ -2,6 +2,7 @@ const logger = require('../utils/logger');
 const Campaign = require('../models/Campaign');
 const SentEmail = require('../models/SentEmail');
 const CampaignEvent = require('../models/CampaignEvent');
+const AnalyticsService = require('../services/AnalyticsService');
 const axios = require('axios');
 
 exports.handleSESWebhook = async (req, res) => {
@@ -150,6 +151,44 @@ async function processSESEvent(event) {
 
         if (Object.keys(campaignUpdate).length > 0) {
             await Campaign.findByIdAndUpdate(campaignId, campaignUpdate);
+        }
+
+        // 4. Update DailyAnalytics for historical reporting
+        const sentEmail = await SentEmail.findOne({ messageId: mail.messageId });
+        if (sentEmail) {
+            const day = sentEmail.metadata.day;
+            const hour = sentEmail.metadata.hour || 0;
+            const senderEmail = sentEmail.sender.email;
+            const recipientDomain = sentEmail.recipient.domain;
+
+            // Record analytics based on event type
+            switch (eventType) {
+                case 'Delivery':
+                    await AnalyticsService.recordEmailDelivered(campaignId, day, hour, senderEmail, recipientDomain);
+                    break;
+                case 'Bounce':
+                    // DailyAnalytics doesn't have a specific recordEmailBounced method, but we can increment bounced counter
+                    // For now, we'll update it manually
+                    await require('../models/DailyAnalytics').findOneAndUpdate(
+                        { campaign: campaignId, day: day },
+                        { $inc: { 'summary.totalBounced': 1 } }
+                    );
+                    break;
+                case 'Open':
+                    // Record open event in DailyAnalytics
+                    await require('../models/DailyAnalytics').findOneAndUpdate(
+                        { campaign: campaignId, day: day },
+                        { $inc: { 'summary.totalOpened': 1 } }
+                    );
+                    break;
+                case 'Click':
+                    // Record click event in DailyAnalytics
+                    await require('../models/DailyAnalytics').findOneAndUpdate(
+                        { campaign: campaignId, day: day },
+                        { $inc: { 'summary.totalClicked': 1 } }
+                    );
+                    break;
+            }
         }
 
     } catch (error) {
