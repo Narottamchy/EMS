@@ -2,6 +2,7 @@ const logger = require('../utils/logger');
 const Campaign = require('../models/Campaign');
 const SentEmail = require('../models/SentEmail');
 const CampaignEvent = require('../models/CampaignEvent');
+const DailyAnalytics = require('../models/DailyAnalytics');
 const AnalyticsService = require('../services/AnalyticsService');
 const axios = require('axios');
 
@@ -169,21 +170,21 @@ async function processSESEvent(event) {
                 case 'Bounce':
                     // DailyAnalytics doesn't have a specific recordEmailBounced method, but we can increment bounced counter
                     // For now, we'll update it manually
-                    await require('../models/DailyAnalytics').findOneAndUpdate(
+                    await DailyAnalytics.findOneAndUpdate(
                         { campaign: campaignId, day: day },
                         { $inc: { 'summary.totalBounced': 1 } }
                     );
                     break;
                 case 'Open':
                     // Record open event in DailyAnalytics
-                    await require('../models/DailyAnalytics').findOneAndUpdate(
+                    await DailyAnalytics.findOneAndUpdate(
                         { campaign: campaignId, day: day },
                         { $inc: { 'summary.totalOpened': 1 } }
                     );
                     break;
                 case 'Click':
                     // Record click event in DailyAnalytics
-                    await require('../models/DailyAnalytics').findOneAndUpdate(
+                    await DailyAnalytics.findOneAndUpdate(
                         { campaign: campaignId, day: day },
                         { $inc: { 'summary.totalClicked': 1 } }
                     );
