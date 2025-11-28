@@ -43,8 +43,8 @@ class AnalyticsService {
 
       // Update hourly breakdown atomically
       await DailyAnalytics.findOneAndUpdate(
-        { 
-          campaign: campaignId, 
+        {
+          campaign: campaignId,
           day: day,
           'hourlyBreakdown.hour': hour
         },
@@ -55,8 +55,8 @@ class AnalyticsService {
 
       // Update domain breakdown atomically
       await DailyAnalytics.findOneAndUpdate(
-        { 
-          campaign: campaignId, 
+        {
+          campaign: campaignId,
           day: day,
           'domainBreakdown.domain': recipientDomain
         },
@@ -91,8 +91,8 @@ class AnalyticsService {
 
       // Update sender breakdown atomically
       await DailyAnalytics.findOneAndUpdate(
-        { 
-          campaign: campaignId, 
+        {
+          campaign: campaignId,
           day: day,
           'senderBreakdown.email': senderEmail
         },
@@ -139,8 +139,8 @@ class AnalyticsService {
 
       // Update hourly breakdown atomically
       await DailyAnalytics.findOneAndUpdate(
-        { 
-          campaign: campaignId, 
+        {
+          campaign: campaignId,
           day: day,
           'hourlyBreakdown.hour': hour
         },
@@ -149,8 +149,8 @@ class AnalyticsService {
 
       // Update domain breakdown atomically
       await DailyAnalytics.findOneAndUpdate(
-        { 
-          campaign: campaignId, 
+        {
+          campaign: campaignId,
           day: day,
           'domainBreakdown.domain': recipientDomain
         },
@@ -159,8 +159,8 @@ class AnalyticsService {
 
       // Update sender breakdown atomically
       await DailyAnalytics.findOneAndUpdate(
-        { 
-          campaign: campaignId, 
+        {
+          campaign: campaignId,
           day: day,
           'senderBreakdown.email': senderEmail
         },
@@ -182,8 +182,8 @@ class AnalyticsService {
 
       // Update hourly breakdown atomically
       await DailyAnalytics.findOneAndUpdate(
-        { 
-          campaign: campaignId, 
+        {
+          campaign: campaignId,
           day: day,
           'hourlyBreakdown.hour': hour
         },
@@ -192,8 +192,8 @@ class AnalyticsService {
 
       // Update domain breakdown atomically
       await DailyAnalytics.findOneAndUpdate(
-        { 
-          campaign: campaignId, 
+        {
+          campaign: campaignId,
           day: day,
           'domainBreakdown.domain': recipientDomain
         },
@@ -202,8 +202,8 @@ class AnalyticsService {
 
       // Update sender breakdown atomically
       await DailyAnalytics.findOneAndUpdate(
-        { 
-          campaign: campaignId, 
+        {
+          campaign: campaignId,
           day: day,
           'senderBreakdown.email': senderEmail
         },
@@ -218,7 +218,7 @@ class AnalyticsService {
   async getCampaignAnalytics(campaignId, startDay, endDay) {
     try {
       const query = { campaign: campaignId };
-      
+
       if (startDay && endDay) {
         query.day = { $gte: startDay, $lte: endDay };
       }
@@ -270,11 +270,21 @@ class AnalyticsService {
   async getRealtimeStats(campaignId) {
     try {
       const mongoose = require('mongoose');
+      const Campaign = require('../models/Campaign'); // Ensure Campaign model is required
       const campaignObjectId = new mongoose.Types.ObjectId(campaignId);
-      
+
+      // Get current day from campaign to filter stats
+      const campaign = await Campaign.findById(campaignId).select('progress.currentDay');
+      const currentDay = campaign?.progress?.currentDay || 1;
+
       const [sentEmails, queueStats] = await Promise.all([
         SentEmail.aggregate([
-          { $match: { campaign: campaignObjectId } },
+          {
+            $match: {
+              campaign: campaignObjectId,
+              'metadata.day': currentDay // Only get stats for the current day
+            }
+          },
           {
             $group: {
               _id: '$status',
@@ -295,7 +305,20 @@ class AnalyticsService {
       };
 
       sentEmails.forEach(item => {
-        stats[item._id] = item.count;
+        // Normalize status names (handle legacy/raw SES statuses)
+        let status = item._id;
+        if (status === 'send') status = 'sent';
+        if (status === 'delivery') status = 'delivered';
+        if (status === 'open') status = 'opened';
+        if (status === 'click') status = 'clicked';
+        if (status === 'bounce') status = 'bounced';
+
+        // Add to existing count or create new
+        if (stats.hasOwnProperty(status)) {
+          stats[status] += item.count;
+        } else {
+          stats[status] = item.count;
+        }
       });
 
       return stats;

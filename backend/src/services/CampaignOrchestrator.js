@@ -135,10 +135,10 @@ class CampaignOrchestrator {
         throw new Error('No emails found in S3 email list');
       }
 
-      // Check emails sent - if warmup mode is enabled, only check THIS campaign
+      // Check emails sent - if warmup mode is enabled, only check THIS campaign AND current day
       // Otherwise, check across ALL campaigns for global deduplication
       const sentEmailQuery = campaign.configuration.warmupMode?.enabled
-        ? { campaign: campaignId }  // Warmup mode: only check this campaign
+        ? { campaign: campaignId, 'metadata.day': campaign.progress.currentDay }  // Warmup mode: check this campaign & day
         : {};                        // Normal mode: check all campaigns
 
       const sentEmails = await SentEmail.find(sentEmailQuery)
@@ -166,8 +166,10 @@ class CampaignOrchestrator {
       if (campaign.configuration.warmupMode?.enabled && recipientsToSend.length === 0) {
         logger.info('🔄 Warmup mode: All emails sent, resetting sent emails for this campaign to restart cycle');
 
-        // Delete all sent emails for this campaign to restart the cycle
-        await SentEmail.deleteMany({ campaign: campaignId });
+        // In warmup mode, we don't delete history anymore. 
+        // We just reset the index to start over for the next day/cycle.
+        // The day-based unique index handles the "new day" logic.
+        // await SentEmail.deleteMany({ campaign: campaignId }); // REMOVED: Preserving history
 
         // Reset the warmup index
         await Campaign.findByIdAndUpdate(campaignId, {
@@ -689,10 +691,10 @@ class CampaignOrchestrator {
         // Get email list based on source (global or custom)
         const emailList = await this.getEmailListForCampaign(campaign);
 
-        // Check emails sent - if warmup mode is enabled, only check THIS campaign
+        // Check emails sent - if warmup mode is enabled, only check THIS campaign AND current day
         // Otherwise, check across ALL campaigns for global deduplication
         const sentEmailQuery = campaign.configuration.warmupMode?.enabled
-          ? { campaign: campaignId }  // Warmup mode: only check this campaign
+          ? { campaign: campaignId, 'metadata.day': currentDay }  // Warmup mode: check this campaign & day
           : {};                        // Normal mode: check all campaigns
 
         const allSentEmails = await SentEmail.find(sentEmailQuery)
@@ -709,8 +711,8 @@ class CampaignOrchestrator {
         if (campaign.configuration.warmupMode?.enabled && recipientsToSend.length === 0) {
           logger.info('🔄 Warmup mode (resume): All emails sent, resetting sent emails for this campaign to restart cycle');
 
-          // Delete all sent emails for this campaign to restart the cycle
-          await SentEmail.deleteMany({ campaign: campaignId });
+          // In warmup mode, we don't delete history anymore.
+          // await SentEmail.deleteMany({ campaign: campaignId }); // REMOVED: Preserving history
 
           // Reset the warmup index
           await Campaign.findByIdAndUpdate(campaignId, {

@@ -69,6 +69,20 @@ async function processSESEvent(event) {
 
         logger.info(`📨 Processing SES event: ${eventType} for campaign ${campaignId}`);
 
+        // Map SES event types to SentEmail status enums
+        const statusMap = {
+            'Send': 'sent',
+            'Delivery': 'delivered',
+            'Open': 'opened',
+            'Click': 'clicked',
+            'Bounce': 'bounced',
+            'Complaint': 'failed', // or 'unsubscribed' depending on logic, usually complaints are treated as failures/suppressions
+            'Reject': 'failed',
+            'Rendering Failure': 'failed'
+        };
+
+        const mappedStatus = statusMap[eventType] || eventType.toLowerCase();
+
         // 1. Save raw event to CampaignEvent
         const campaignEvent = new CampaignEvent({
             campaign: campaignId,
@@ -85,29 +99,11 @@ async function processSESEvent(event) {
         await campaignEvent.save();
 
         // 2. Update SentEmail status
-        const updateData = {
-            status: eventType.toLowerCase(),
-            [`deliveryStatus.${eventType.toLowerCase()}At`]: new Date()
-        };
-
-        // Add tracking info for opens/clicks
-        if (eventType === 'Open') {
-            updateData['tracking.openCount'] = { $inc: 1 }; // This syntax is wrong for update object, need $inc operator
-            updateData['tracking.lastOpenedAt'] = new Date();
-            updateData['tracking.userAgent'] = event.open.userAgent;
-            updateData['tracking.ipAddress'] = event.open.ipAddress;
-        } else if (eventType === 'Click') {
-            updateData['tracking.clickCount'] = { $inc: 1 };
-            updateData['tracking.lastClickedAt'] = new Date();
-            updateData['tracking.userAgent'] = event.click.userAgent;
-            updateData['tracking.ipAddress'] = event.click.ipAddress;
-        }
-
         // Construct the update query
         const updateQuery = {
             $set: {
-                status: eventType.toLowerCase(),
-                [`deliveryStatus.${eventType.toLowerCase()}At`]: new Date()
+                status: mappedStatus,
+                [`deliveryStatus.${mappedStatus}At`]: new Date()
             }
         };
 

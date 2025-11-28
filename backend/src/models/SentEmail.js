@@ -107,20 +107,22 @@ const sentEmailSchema = new mongoose.Schema({
 // Compound indexes for common queries
 sentEmailSchema.index({ campaign: 1, status: 1 });
 sentEmailSchema.index({ campaign: 1, 'metadata.day': 1 });
-sentEmailSchema.index({ 'recipient.email': 1, campaign: 1 }, { unique: true });
+// Modified unique index to allow re-sending in warmup mode (different days)
+sentEmailSchema.index({ 'recipient.email': 1, campaign: 1, 'metadata.day': 1 }, { unique: true });
 sentEmailSchema.index({ createdAt: -1 });
 sentEmailSchema.index({ 'deliveryStatus.sentAt': -1 });
 
 // Prevent duplicate sends
-sentEmailSchema.pre('save', async function(next) {
+sentEmailSchema.pre('save', async function (next) {
   if (this.isNew) {
     const existing = await this.constructor.findOne({
       campaign: this.campaign,
-      'recipient.email': this.recipient.email
+      'recipient.email': this.recipient.email,
+      'metadata.day': this.metadata.day // Check for duplicate only on the same day
     });
-    
+
     if (existing) {
-      const error = new Error('Email already sent to this recipient in this campaign');
+      const error = new Error('Email already sent to this recipient in this campaign on this day');
       error.code = 'DUPLICATE_EMAIL';
       return next(error);
     }
