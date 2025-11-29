@@ -277,7 +277,7 @@ const CampaignDetail = () => {
               <div className="card card-hover">
                 <p className="text-sm font-medium text-muted mb-2">Queued</p>
                 <p className="text-3xl font-bold text-yellow-500">
-                  {realtimeStats?.emailStats?.queued || 0}
+                  {realtimeStats.queueStats.delayed || 0}
                 </p>
                 <p className="text-xs text-muted mt-1">In queue</p>
               </div>
