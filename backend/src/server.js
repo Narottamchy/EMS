@@ -28,6 +28,9 @@ const io = new Server(server, {
   }
 });
 
+// Trust proxy - needed when behind reverse proxy (nginx, Docker, AWS ALB, etc.)
+app.set('trust proxy', 1);
+
 app.set('io', io);
 app.use(helmet());
 app.use(mongoSanitize());
