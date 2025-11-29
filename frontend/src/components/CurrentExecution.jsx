@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Clock, Play, Pause, CheckCircle, Calendar, Mail, Users, BarChart3, RefreshCw, AlertCircle } from 'lucide-react';
 import { campaignAPI } from '../lib/api';
 
-const CurrentExecution = ({ campaignId , realtimeStats }) => {
+const CurrentExecution = ({ campaignId, realtimeStats }) => {
   const [executionData, setExecutionData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,7 +13,7 @@ const CurrentExecution = ({ campaignId , realtimeStats }) => {
 
   useEffect(() => {
     loadExecutionData();
-    
+
     // No polling needed - data loads once and user can manually refresh
     // Real-time updates come via WebSocket in parent component
   }, [campaignId]);
@@ -80,19 +80,42 @@ const CurrentExecution = ({ campaignId , realtimeStats }) => {
     return `${minute.toString().padStart(2, '0')}`;
   };
 
+  // Convert UTC time to local time for display
+  const convertUTCToLocal = (utcHour, utcMinute) => {
+    const now = new Date();
+    const utcDate = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      utcHour,
+      utcMinute
+    ));
+
+    return {
+      hour: utcDate.getHours(),
+      minute: utcDate.getMinutes()
+    };
+  };
+
   const getCurrentMinuteEmails = () => {
     if (!executionData?.execution?.currentHourPlan) return 0;
-    
-    // Use UTC time to match backend
-    const currentMinute = new Date().getUTCMinutes();
+
+    // Get current time in both UTC and local
+    const now = new Date();
+    const utcMinute = now.getUTCMinutes();
+    const utcHour = now.getUTCHours();
+
     let totalEmails = 0;
-    
+
+    // The minuteDistribution array is indexed by UTC minutes
+    // We need to check if the current UTC hour matches the plan's hour
     executionData.execution.currentHourPlan.domains.forEach(domain => {
-      if (domain.minuteDistribution && domain.minuteDistribution[currentMinute]) {
-        totalEmails += domain.minuteDistribution[currentMinute];
+      if (domain.minuteDistribution &&
+        executionData.execution.currentHourPlan.hour === utcHour) {
+        totalEmails += domain.minuteDistribution[utcMinute] || 0;
       }
     });
-    
+
     return totalEmails;
   };
 
@@ -142,6 +165,11 @@ const CurrentExecution = ({ campaignId , realtimeStats }) => {
   const { campaign, execution, emailListStats } = executionData;
   const currentMinuteEmails = getCurrentMinuteEmails();
 
+  // Convert UTC time to local time for display
+  const localTime = execution?.currentTime
+    ? convertUTCToLocal(execution.currentTime.hour, execution.currentTime.minute)
+    : { hour: 0, minute: 0 };
+
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-6">
@@ -150,7 +178,10 @@ const CurrentExecution = ({ campaignId , realtimeStats }) => {
           <div>
             <h2 className="text-xl font-semibold text-white">Current Execution</h2>
             <p className="text-sm text-muted">
-              Day {campaign.currentDay} - {execution.currentTime.hour.toString().padStart(2, '0')}:{execution.currentTime.minute.toString().padStart(2, '0')}
+              Day {campaign.currentDay} - {localTime.hour.toString().padStart(2, '0')}:{localTime.minute.toString().padStart(2, '0')}
+              <span className="text-muted/70 ml-2">
+                ({execution.currentTime.hour.toString().padStart(2, '0')}:{execution.currentTime.minute.toString().padStart(2, '0')} UTC)
+              </span>
             </p>
           </div>
         </div>
@@ -203,7 +234,10 @@ const CurrentExecution = ({ campaignId , realtimeStats }) => {
               <div className="flex items-center gap-2">
                 <Play className="w-5 h-5 text-white" />
                 <h3 className="font-semibold text-white">
-                  Current Hour: {formatTime(execution.currentHourPlan.hour)}
+                  Current Hour: {formatTime(convertUTCToLocal(execution.currentHourPlan.hour, 0).hour)}
+                  <span className="text-xs text-muted/70 ml-1">
+                    ({formatTime(execution.currentHourPlan.hour)} UTC)
+                  </span>
                 </h3>
               </div>
               <div className="text-right">
@@ -213,31 +247,40 @@ const CurrentExecution = ({ campaignId , realtimeStats }) => {
                 </p>
               </div>
             </div>
-            
+
             {execution.currentHourPlan.domains.map((domain, index) => (
               <div key={index} className="mb-3 last:mb-0">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-medium text-white">{domain.sender}</p>
                   <span className="text-sm text-white">{domain.count} emails</span>
                 </div>
-                
+
                 {domain.minuteDistribution && domain.minuteDistribution.length > 0 && (
                   <div className="grid grid-cols-6 md:grid-cols-12 gap-1">
-                    {domain.minuteDistribution.slice(0, 60).map((count, minute) => (
-                      <div 
-                        key={minute} 
-                        className={`text-center p-1 rounded text-xs ${
-                          minute === new Date().getUTCMinutes() 
-                            ? 'bg-green-600 text-white font-bold' 
-                            : count > 0 
-                              ? 'bg-green-800 text-white' 
+                    {domain.minuteDistribution.slice(0, 60).map((count, minute) => {
+                      // The minute index represents UTC minutes
+                      // Highlight the current UTC minute
+                      const now = new Date();
+                      const currentUTCMinute = now.getUTCMinutes();
+                      const currentUTCHour = now.getUTCHours();
+                      const isCurrentMinute = minute === currentUTCMinute &&
+                        execution.currentHourPlan.hour === currentUTCHour;
+
+                      return (
+                        <div
+                          key={minute}
+                          className={`text-center p-1 rounded text-xs ${isCurrentMinute
+                            ? 'bg-green-600 text-white font-bold'
+                            : count > 0
+                              ? 'bg-green-800 text-white'
                               : 'bg-white/5 text-muted'
-                        }`}
-                        title={`${formatMinute(minute)}: ${count} emails`}
-                      >
-                        {count > 0 ? count : ''}
-                      </div>
-                    ))}
+                            }`}
+                          title={`Minute ${formatMinute(minute)} (UTC): ${count} emails`}
+                        >
+                          {count > 0 ? count : ''}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -257,7 +300,10 @@ const CurrentExecution = ({ campaignId , realtimeStats }) => {
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-white" />
                     <span className="font-medium text-white">
-                      {formatTime(hour.hour)}
+                      {formatTime(convertUTCToLocal(hour.hour, 0).hour)}
+                      <span className="text-xs text-muted/70 ml-1">
+                        ({formatTime(hour.hour)} UTC)
+                      </span>
                     </span>
                   </div>
                   <span className="text-sm text-white">{hour.count} emails</span>
@@ -269,33 +315,39 @@ const CurrentExecution = ({ campaignId , realtimeStats }) => {
             ))}
           </div>
         </div>
-      )}
+      )
+      }
 
       {/* Completed Hours */}
-      {execution.completedHours && execution.completedHours.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold text-white mb-4">Completed Hours</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {execution.completedHours.slice(-6).map((hour, index) => (
-              <div key={index} className="bg-white/5 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-muted" />
-                    <span className="font-medium text-white">
-                      {formatTime(hour.hour)}
-                    </span>
+      {
+        execution.completedHours && execution.completedHours.length > 0 && (
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-white mb-4">Completed Hours</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {execution.completedHours.slice(-6).map((hour, index) => (
+                <div key={index} className="bg-white/5 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-muted" />
+                      <span className="font-medium text-white">
+                        {formatTime(convertUTCToLocal(hour.hour, 0).hour)}
+                        <span className="text-xs text-muted/70 ml-1">
+                          ({formatTime(hour.hour)} UTC)
+                        </span>
+                      </span>
+                    </div>
+                    <span className="text-sm text-muted">{hour.count} emails</span>
                   </div>
-                  <span className="text-sm text-muted">{hour.count} emails</span>
+                  <div className="text-xs text-muted">
+                    {hour.domain} • {hour.sender}
+                  </div>
                 </div>
-                <div className="text-xs text-muted">
-                  {hour.domain} • {hour.sender}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
 
