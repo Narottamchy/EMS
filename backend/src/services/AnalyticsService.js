@@ -270,7 +270,7 @@ class AnalyticsService {
   async getRealtimeStats(campaignId) {
     try {
       const mongoose = require('mongoose');
-      const Campaign = require('../models/Campaign'); // Ensure Campaign model is required
+      const Campaign = require('../models/Campaign');
       const campaignObjectId = new mongoose.Types.ObjectId(campaignId);
 
       // Get current day from campaign to filter stats
@@ -293,7 +293,7 @@ class AnalyticsService {
         }
       ]);
 
-      // Get engagement counts (opens and clicks from tracking fields)
+      // Get unique email counts for opens and clicks
       const engagementCounts = await SentEmail.aggregate([
         {
           $match: {
@@ -304,8 +304,16 @@ class AnalyticsService {
         {
           $group: {
             _id: null,
-            totalOpens: { $sum: '$tracking.openCount' },
-            totalClicks: { $sum: '$tracking.clickCount' }
+            uniqueOpens: {
+              $sum: {
+                $cond: [{ $gt: ['$tracking.openCount', 0] }, 1, 0]
+              }
+            },
+            uniqueClicks: {
+              $sum: {
+                $cond: [{ $gt: ['$tracking.clickCount', 0] }, 1, 0]
+              }
+            }
           }
         }
       ]);
@@ -337,10 +345,10 @@ class AnalyticsService {
         }
       });
 
-      // Add engagement counts
+      // Add unique engagement counts
       if (engagementCounts.length > 0) {
-        stats.opened = engagementCounts[0].totalOpens || 0;
-        stats.clicked = engagementCounts[0].totalClicks || 0;
+        stats.opened = engagementCounts[0].uniqueOpens || 0;
+        stats.clicked = engagementCounts[0].uniqueClicks || 0;
       }
 
       return stats;
