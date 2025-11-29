@@ -203,27 +203,27 @@ const CampaignDetail = () => {
             Today's Plan
           </button>
           <button
+            onClick={() => setActiveTab('daily-stats')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm flex text-black items-center gap-2 ${
+              activeTab === 'daily-stats'
+                ? 'border-transparent'
+                : 'border-transparent'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            Daily Stats
+          </button>
+          <button
             onClick={() => setActiveTab('analytics')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+            className={`py-2 px-1 border-b-2 font-medium text-sm flex text-black items-center gap-2 ${
               activeTab === 'analytics'
-                ? 'border-white/20 text-white'
-                : 'border-transparent text-muted hover:text-muted hover:border-white/10'
+                ? 'border-transparent'
+                : 'border-transparent'
             }`}
           >
             <BarChart3 className="w-4 h-4" />
             Analytics
           </button>
-          {/* <button
-            onClick={() => setActiveTab('daily-stats')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
-              activeTab === 'daily-stats'
-                ? 'border-white/20 text-white'
-                : 'border-transparent text-muted hover:text-muted hover:border-white/10'
-            }`}
-          >
-            <BarChart3 className="w-4 h-4" />
-            Daily Stats
-          </button> */}
         </nav>
       </div>
 
