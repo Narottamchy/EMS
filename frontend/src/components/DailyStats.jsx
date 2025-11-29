@@ -20,7 +20,7 @@ const DailyStats = ({ campaignId }) => {
       const params = {};
       if (start) params.startDate = start;
       if (end) params.endDate = end;
-      
+
       const response = await campaignAPI.getDailyStats(campaignId, params);
       setDailyStats(response.data);
       setError(null);
@@ -129,38 +129,76 @@ const DailyStats = ({ campaignId }) => {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <div className="card card-hover">
           <p className="text-sm font-medium text-muted mb-2">Total Days</p>
           <p className="text-3xl font-bold text-foreground">{summary.totalDays}</p>
           {summary.dateRange.start && summary.dateRange.end && (
-            <p className="text-xs text-muted mt-2">
+            <p className="text-xs text-muted mt-1">
               {summary.dateRange.start} to {summary.dateRange.end}
             </p>
           )}
         </div>
         <div className="card card-hover">
           <p className="text-sm font-medium text-muted mb-2">Total Sent</p>
-          <p className="text-3xl font-bold text-green-600">{summary.totalSent.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-foreground">{summary.totalSent?.toLocaleString() || 0}</p>
         </div>
         <div className="card card-hover">
-          <p className="text-sm font-medium text-muted mb-2">Total Failed</p>
-          <p className="text-3xl font-bold text-red-600">{summary.totalFailed.toLocaleString()}</p>
-        </div>
-        <div className="card card-hover">
-          <p className="text-sm font-medium text-muted mb-2">Success Rate</p>
-          <p className="text-3xl font-bold text-foreground">
-            {summary.totalSent + summary.totalFailed > 0
-              ? ((summary.totalSent / (summary.totalSent + summary.totalFailed)) * 100).toFixed(1)
-              : 0}%
+          <p className="text-sm font-medium text-muted mb-2">Delivered</p>
+          <p className="text-3xl font-bold text-green-600">{summary.totalDelivered?.toLocaleString() || 0}</p>
+          <p className="text-xs text-muted mt-1">
+            {summary.totalSent > 0
+              ? `${((summary.totalDelivered / summary.totalSent) * 100).toFixed(1)}%`
+              : '0%'}
           </p>
+        </div>
+        <div className="card card-hover">
+          <p className="text-sm font-medium text-muted mb-2">Opened</p>
+          <p className="text-3xl font-bold text-blue-600">{summary.totalOpened?.toLocaleString() || 0}</p>
+          <p className="text-xs text-muted mt-1">
+            {summary.totalDelivered > 0
+              ? `${((summary.totalOpened / summary.totalDelivered) * 100).toFixed(1)}% open rate`
+              : '0%'}
+          </p>
+        </div>
+        <div className="card card-hover">
+          <p className="text-sm font-medium text-muted mb-2">Clicked</p>
+          <p className="text-3xl font-bold text-purple-600">{summary.totalClicked?.toLocaleString() || 0}</p>
+          <p className="text-xs text-muted mt-1">
+            {summary.totalDelivered > 0
+              ? `${((summary.totalClicked / summary.totalDelivered) * 100).toFixed(1)}% click rate`
+              : '0%'}
+          </p>
+        </div>
+        <div className="card card-hover">
+          <p className="text-sm font-medium text-muted mb-2">Bounced</p>
+          <p className="text-3xl font-bold text-orange-600">{summary.totalBounced?.toLocaleString() || 0}</p>
+          <p className="text-xs text-muted mt-1">
+            {summary.totalSent > 0
+              ? `${((summary.totalBounced / summary.totalSent) * 100).toFixed(1)}%`
+              : '0%'}
+          </p>
+        </div>
+        <div className="card card-hover">
+          <p className="text-sm font-medium text-muted mb-2">Failed</p>
+          <p className="text-3xl font-bold text-red-600">{summary.totalFailed?.toLocaleString() || 0}</p>
+          <p className="text-xs text-muted mt-1">
+            {summary.totalSent > 0
+              ? `${((summary.totalFailed / summary.totalSent) * 100).toFixed(1)}%`
+              : '0%'}
+          </p>
+        </div>
+        <div className="card card-hover">
+          <p className="text-sm font-medium text-muted mb-2">Total Opens</p>
+          <p className="text-3xl font-bold text-foreground">{summary.totalOpened?.toLocaleString() || 0}</p>
+          <p className="text-xs text-muted mt-1">All open events</p>
         </div>
       </div>
 
       {/* Daily Breakdown */}
       <div className="card">
         <h2 className="text-xl font-semibold text-foreground mb-6">Daily Breakdown</h2>
-        
+
         {stats.length === 0 ? (
           <div className="text-center py-8 text-muted">
             <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
@@ -191,15 +229,27 @@ const DailyStats = ({ campaignId }) => {
                     <div className="flex items-center gap-6">
                       <div className="text-right">
                         <p className="text-sm text-muted">Sent</p>
-                        <p className="font-semibold text-green-600">{day.stats.totalSent.toLocaleString()}</p>
+                        <p className="font-semibold text-foreground">{day.stats.totalSent?.toLocaleString() || 0}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-muted">Delivered</p>
+                        <p className="font-semibold text-green-600">{day.stats.totalDelivered?.toLocaleString() || 0}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-muted">Opened</p>
+                        <p className="font-semibold text-blue-600">{day.stats.totalOpened?.toLocaleString() || 0}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-muted">Clicked</p>
+                        <p className="font-semibold text-purple-600">{day.stats.totalClicked?.toLocaleString() || 0}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-muted">Bounced</p>
+                        <p className="font-semibold text-orange-600">{day.stats.totalBounced?.toLocaleString() || 0}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm text-muted">Failed</p>
-                        <p className="font-semibold text-red-600">{day.stats.totalFailed.toLocaleString()}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-muted">Success Rate</p>
-                        <p className="font-semibold text-foreground">{successRate}%</p>
+                        <p className="font-semibold text-red-600">{day.stats.totalFailed?.toLocaleString() || 0}</p>
                       </div>
                       {isExpanded ? (
                         <ChevronUp className="w-5 h-5 text-muted" />
@@ -219,13 +269,13 @@ const DailyStats = ({ campaignId }) => {
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {day.senderBreakdown.map((sender, idx) => (
                               <div key={idx} className="p-3 bg-white/5 rounded-lg">
-                                <p className="text-sm font-medium text-foreground truncate" title={sender.senderEmail}>
-                                  {sender.senderEmail}
+                                <p className="text-sm font-medium text-foreground truncate" title={sender.email || sender.senderEmail}>
+                                  {sender.email || sender.senderEmail}
                                 </p>
-                                <div className="flex items-center gap-4 mt-2 text-xs">
-                                  <span className="text-green-600">✓ {sender.sent}</span>
-                                  <span className="text-red-600">✗ {sender.failed}</span>
-                                  <span className="text-muted">⏳ {sender.queued}</span>
+                                <div className="flex items-center gap-3 mt-2 text-xs">
+                                  <span className="text-foreground">📤 {sender.sent || 0}</span>
+                                  <span className="text-green-600">✓ {sender.delivered || 0}</span>
+                                  <span className="text-red-600">✗ {sender.failed || 0}</span>
                                 </div>
                               </div>
                             ))}
@@ -239,13 +289,23 @@ const DailyStats = ({ campaignId }) => {
                           <h4 className="text-sm font-semibold text-foreground mb-3">By Hour</h4>
                           <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
                             {day.hourlyBreakdown
+                              .filter(hour => hour.sent > 0 || hour.delivered > 0)
                               .sort((a, b) => a.hour - b.hour)
                               .map((hour) => (
                                 <div key={hour.hour} className="p-2 bg-white/5 rounded text-center">
                                   <p className="text-xs font-medium text-muted">{hour.hour}:00</p>
-                                  <p className="text-sm font-semibold text-green-600">{hour.sent}</p>
+                                  <p className="text-sm font-semibold text-foreground">{hour.sent || 0}</p>
+                                  {hour.delivered > 0 && (
+                                    <p className="text-xs text-green-600">✓ {hour.delivered}</p>
+                                  )}
+                                  {hour.opened > 0 && (
+                                    <p className="text-xs text-blue-600">👁 {hour.opened}</p>
+                                  )}
+                                  {hour.clicked > 0 && (
+                                    <p className="text-xs text-purple-600">🖱 {hour.clicked}</p>
+                                  )}
                                   {hour.failed > 0 && (
-                                    <p className="text-xs text-red-600">{hour.failed} failed</p>
+                                    <p className="text-xs text-red-600">✗ {hour.failed}</p>
                                   )}
                                 </div>
                               ))}
@@ -266,8 +326,14 @@ const DailyStats = ({ campaignId }) => {
                                   <p className="text-sm font-medium text-foreground truncate" title={domain.domain}>
                                     {domain.domain}
                                   </p>
-                                  <div className="flex items-center gap-3 mt-2 text-xs">
-                                    <span className="text-green-600">✓ {domain.sent}</span>
+                                  <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
+                                    <span className="text-foreground">📤 {domain.sent || 0}</span>
+                                    {domain.delivered > 0 && (
+                                      <span className="text-green-600">✓ {domain.delivered}</span>
+                                    )}
+                                    {domain.bounced > 0 && (
+                                      <span className="text-orange-600">⚠ {domain.bounced}</span>
+                                    )}
                                     {domain.failed > 0 && (
                                       <span className="text-red-600">✗ {domain.failed}</span>
                                     )}
