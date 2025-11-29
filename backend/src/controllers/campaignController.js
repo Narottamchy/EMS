@@ -5,6 +5,7 @@ const AnalyticsService = require('../services/AnalyticsService');
 const QueueService = require('../services/QueueService');
 const SystemLog = require('../models/SystemLog');
 const DailyCampaignStats = require('../models/DailyCampaignStats');
+const DailyAnalytics = require('../models/DailyAnalytics');
 const logger = require('../utils/logger');
 
 // Create new campaign
@@ -1409,26 +1410,65 @@ exports.getDailyStats = async (req, res) => {
 
     // Add date range filter if provided
     if (startDate || endDate) {
-      query.dateString = {};
+      query.day = {};
       if (startDate) {
-        query.dateString.$gte = startDate;
+        const startDay = Math.floor((new Date(startDate) - new Date(campaign.startedAt)) / (1000 * 60 * 60 * 24)) + 1;
+        query.day.$gte = startDay;
       }
       if (endDate) {
-        query.dateString.$lte = endDate;
+        const endDay = Math.floor((new Date(endDate) - new Date(campaign.startedAt)) / (1000 * 60 * 60 * 24)) + 1;
+        query.day.$lte = endDay;
       }
     }
 
-    // Fetch daily stats
-    const dailyStats = await DailyCampaignStats.find(query)
-      .sort({ date: -1 })
+    // Fetch daily stats from DailyAnalytics (which has opens, clicks, etc.)
+    const dailyAnalytics = await DailyAnalytics.find(query)
+      .sort({ day: -1 })
       .lean();
+
+    // Format the response to match the expected structure
+    const dailyStats = dailyAnalytics.map(analytics => ({
+      _id: analytics._id,
+      campaign: analytics.campaign,
+      date: analytics.date,
+      dateString: analytics.date.toISOString().split('T')[0],
+      campaignDay: analytics.day,
+      stats: {
+        totalScheduled: 0, // Not tracked in DailyAnalytics
+        totalSent: analytics.summary.totalSent || 0,
+        totalDelivered: analytics.summary.totalDelivered || 0,
+        totalFailed: analytics.summary.totalFailed || 0,
+        totalBounced: analytics.summary.totalBounced || 0,
+        totalOpened: analytics.summary.totalOpened || 0,
+        totalClicked: analytics.summary.totalClicked || 0,
+        uniqueOpens: analytics.summary.uniqueOpens || 0,
+        uniqueClicks: analytics.summary.uniqueClicks || 0,
+        totalQueued: 0 // Not tracked in DailyAnalytics
+      },
+      rates: analytics.rates || {},
+      senderBreakdown: analytics.senderBreakdown || [],
+      hourlyBreakdown: analytics.hourlyBreakdown || [],
+      recipientDomainBreakdown: analytics.domainBreakdown || [],
+      metadata: {
+        updateCount: 0,
+        lastUpdatedAt: analytics.updatedAt
+      },
+      createdAt: analytics.createdAt,
+      updatedAt: analytics.updatedAt
+    }));
 
     // Calculate summary
     const summary = {
       totalDays: dailyStats.length,
       totalSent: dailyStats.reduce((sum, day) => sum + (day.stats.totalSent || 0), 0),
+      totalDelivered: dailyStats.reduce((sum, day) => sum + (day.stats.totalDelivered || 0), 0),
       totalFailed: dailyStats.reduce((sum, day) => sum + (day.stats.totalFailed || 0), 0),
-      totalQueued: dailyStats.reduce((sum, day) => sum + (day.stats.totalQueued || 0), 0),
+      totalBounced: dailyStats.reduce((sum, day) => sum + (day.stats.totalBounced || 0), 0),
+      totalOpened: dailyStats.reduce((sum, day) => sum + (day.stats.totalOpened || 0), 0),
+      totalClicked: dailyStats.reduce((sum, day) => sum + (day.stats.totalClicked || 0), 0),
+      uniqueOpens: dailyStats.reduce((sum, day) => sum + (day.stats.uniqueOpens || 0), 0),
+      uniqueClicks: dailyStats.reduce((sum, day) => sum + (day.stats.uniqueClicks || 0), 0),
+      totalQueued: 0, // Not tracked
       dateRange: {
         start: dailyStats.length > 0 ? dailyStats[dailyStats.length - 1].dateString : null,
         end: dailyStats.length > 0 ? dailyStats[0].dateString : null
