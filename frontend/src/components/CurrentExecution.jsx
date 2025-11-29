@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Clock, Play, Pause, CheckCircle, Calendar, Mail, Users, BarChart3, RefreshCw, AlertCircle } from 'lucide-react';
 import { campaignAPI } from '../lib/api';
 
-const CurrentExecution = ({ campaignId }) => {
+const CurrentExecution = ({ campaignId , realtimeStats }) => {
   const [executionData, setExecutionData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -169,21 +169,21 @@ const CurrentExecution = ({ campaignId }) => {
           <Mail className="w-6 h-6 text-white mx-auto mb-2" />
           <p className="text-sm text-muted font-medium">Total Scheduled</p>
           <p className="text-2xl font-bold text-white">
-            {execution.totalScheduled?.toLocaleString() || 0}
+            {realtimeStats?.queueStats?.total?.toLocaleString() || 0}
           </p>
         </div>
         <div className="text-center p-4 bg-white/5 border border-white/10 rounded-xl backdrop-blur-lg">
           <CheckCircle className="w-6 h-6 text-white mx-auto mb-2" />
           <p className="text-sm text-muted font-medium">Completed</p>
           <p className="text-2xl font-bold text-white">
-            {execution.totalCompleted?.toLocaleString() || 0}
+            {realtimeStats?.queueStats?.completed?.toLocaleString() || 0}
           </p>
         </div>
         <div className="text-center p-4 bg-white/5 border border-white/10 rounded-xl backdrop-blur-lg">
           <Clock className="w-6 h-6 text-white mx-auto mb-2" />
           <p className="text-sm text-muted font-medium">Remaining</p>
           <p className="text-2xl font-bold text-white">
-            {execution.totalRemaining?.toLocaleString() || 0}
+            {realtimeStats?.queueStats?.delayed?.toLocaleString() || 0}
           </p>
         </div>
         <div className="text-center p-4 bg-white/5 border border-white/10 rounded-xl backdrop-blur-lg">
@@ -292,42 +292,6 @@ const CurrentExecution = ({ campaignId }) => {
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {/* Email List Stats */}
-      {emailListStats && (
-        <div className="mt-6 p-4 bg-white/5 rounded-lg">
-          <div className="flex items-center gap-2 mb-2">
-            <BarChart3 className="w-5 h-5 text-muted" />
-            <h4 className="font-semibold text-white">Email List Statistics</h4>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <p className="text-muted font-medium">Total Emails</p>
-              <p className="text-white font-semibold">
-                {emailListStats.totalEmails?.toLocaleString() || 0}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted font-medium">Available</p>
-              <p className="text-white font-semibold">
-                {emailListStats.availableToSend?.toLocaleString() || 0}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted font-medium">Already Sent</p>
-              <p className="text-white font-semibold">
-                {emailListStats.alreadySent?.toLocaleString() || 0}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted font-medium">Unsubscribed</p>
-              <p className="text-white font-semibold">
-                {emailListStats.unsubscribed?.toLocaleString() || 0}
-              </p>
-            </div>
           </div>
         </div>
       )}
