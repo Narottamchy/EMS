@@ -62,7 +62,7 @@ const CampaignDetail = () => {
         }
       }));
     }
-    
+
     // Reload full data on campaign status changes
     if (data.type === 'campaign_started' || data.type === 'campaign_paused' || data.type === 'campaign_resumed') {
       loadCampaignData();
@@ -79,7 +79,7 @@ const CampaignDetail = () => {
       if (templateData && Object.keys(templateData).length > 0) {
         await campaignAPI.saveTemplateData(id, templateData);
       }
-      
+
       // Start the campaign
       await startCampaign(id);
       loadRealtimeStats();
@@ -120,20 +120,20 @@ const CampaignDetail = () => {
             <p className="text-muted mt-2">{currentCampaign.description}</p>
           </div>
         </div>
-        
-         <div className="flex items-center gap-2">
-           <button onClick={loadRealtimeStats} className="btn btn-secondary">
-             <RefreshCw className="w-5 h-5" />
-           </button>
-           <button
-             onClick={() => navigate(`/campaigns/${id}/edit`)}
-             className="btn btn-primary"
-             disabled={currentCampaign.status === 'running'}
-             title={currentCampaign.status === 'running' ? 'Cannot edit running campaign. Pause it first.' : 'Edit campaign configuration'}
-           >
-             <Edit className="w-5 h-5 mr-2" />
-             Edit Campaign
-           </button>
+
+        <div className="flex items-center gap-2">
+          <button onClick={loadRealtimeStats} className="btn btn-secondary">
+            <RefreshCw className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => navigate(`/campaigns/${id}/edit`)}
+            className="btn btn-primary"
+            disabled={currentCampaign.status === 'running'}
+            title={currentCampaign.status === 'running' ? 'Cannot edit running campaign. Pause it first.' : 'Edit campaign configuration'}
+          >
+            <Edit className="w-5 h-5 mr-2" />
+            Edit Campaign
+          </button>
           <button
             onClick={() => navigate(`/campaigns/${id}/simulate`)}
             className="btn btn-primary"
@@ -142,21 +142,21 @@ const CampaignDetail = () => {
             Simulate Plan
           </button>
 
-          
+
           {currentCampaign.status === 'draft' && (
             <button onClick={handleStart} className="btn btn-success">
               <Play className="w-5 h-5 mr-2" />
               Start Campaign
             </button>
           )}
-          
+
           {currentCampaign.status === 'running' && (
             <button onClick={handlePause} className="btn btn-warning">
               <Pause className="w-5 h-5 mr-2" />
               Pause Campaign
             </button>
           )}
-          
+
           {currentCampaign.status === 'paused' && (
             <button onClick={handleResume} className="btn btn-success">
               <Play className="w-5 h-5 mr-2" />
@@ -169,57 +169,52 @@ const CampaignDetail = () => {
       {/* Tab Navigation */}
       <div className="border-b border-white/10">
         <nav className="-mb-px flex space-x-8">
-        <button
+          <button
             onClick={() => setActiveTab('overview')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'overview'
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'overview'
                 ? 'border-white/20 text-white'
                 : 'border-transparent text-muted hover:text-muted hover:border-white/10'
-            }`}
+              }`}
           >
             Overview
           </button>
           <button
             onClick={() => setActiveTab('execution')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
-              activeTab === 'execution'
+            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${activeTab === 'execution'
                 ? 'border-white/20 text-white'
                 : 'border-transparent text-muted hover:text-muted hover:border-white/10'
-            }`}
+              }`}
           >
             <Play className="w-4 h-4" />
             Live Execution
           </button>
-          
+
           <button
             onClick={() => setActiveTab('today')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
-              activeTab === 'today'
+            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${activeTab === 'today'
                 ? 'border-white/20 text-white'
                 : 'border-transparent text-muted hover:text-muted hover:border-white/10'
-            }`}
+              }`}
           >
             <Clock className="w-4 h-4" />
             Today's Plan
           </button>
           <button
             onClick={() => setActiveTab('daily-stats')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm flex text-black items-center gap-2 ${
-              activeTab === 'daily-stats'
+            className={`py-2 px-1 border-b-2 font-medium text-sm flex text-black items-center gap-2 ${activeTab === 'daily-stats'
                 ? 'border-transparent'
                 : 'border-transparent'
-            }`}
+              }`}
           >
             <BarChart3 className="w-4 h-4" />
             Daily Stats
           </button>
           <button
             onClick={() => setActiveTab('analytics')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm flex text-black items-center gap-2 ${
-              activeTab === 'analytics'
+            className={`py-2 px-1 border-b-2 font-medium text-sm flex text-black items-center gap-2 ${activeTab === 'analytics'
                 ? 'border-transparent'
                 : 'border-transparent'
-            }`}
+              }`}
           >
             <BarChart3 className="w-4 h-4" />
             Analytics
@@ -237,111 +232,163 @@ const CampaignDetail = () => {
       {activeTab === 'overview' && (
         <>
           {/* Real-time Stats */}
-      {realtimeStats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="card card-hover">
-            <p className="text-sm font-medium text-muted mb-2">Queued</p>
-            <p className="text-3xl font-bold text-secondary">
-              {realtimeStats.emailStats?.queued || 0}
-            </p>
-          </div>
-          <div className="card card-hover">
-            <p className="text-sm font-medium text-muted mb-2">Sent</p>
-            <p className="text-3xl font-bold text-foreground">
-              {realtimeStats.emailStats?.sent || 0}
-            </p>
-          </div>
-          {/* <div className="card card-hover">
-            <p className="text-sm font-medium text-muted mb-2">Delivered</p>
-            <p className="text-3xl font-bold text-accent">
-              {realtimeStats.emailStats?.delivered || 0}
-            </p>
-          </div> */}
-          <div className="card card-hover">
-            <p className="text-sm font-medium text-muted mb-2">Failed</p>
-            <p className="text-3xl font-bold text-red-600">
-              {realtimeStats.emailStats?.failed || 0}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Campaign Configuration */}
-      <div className="card">
-        <h2 className="text-xl font-semibold text-foreground mb-6">Configuration</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <p className="text-sm font-medium text-muted mb-2">Domains</p>
-            <p className="text-lg font-medium text-foreground">
-              {currentCampaign.configuration?.domains?.join(', ')}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-muted">Emails Per Domain</p>
-            <p className="text-lg font-medium text-white mt-1">
-              {currentCampaign.configuration?.senderEmails && currentCampaign.configuration.senderEmails.length > 0
-                ? Math.max(...Object.values(
-                    currentCampaign.configuration.senderEmails
-                      .filter(s => s.isActive)
-                      .reduce((acc, sender) => {
-                        acc[sender.domain] = (acc[sender.domain] || 0) + 1;
-                        return acc;
-                      }, {})
-                  ), 1)
-                : '5 (default)'
-              }
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-muted">Base Daily Total</p>
-            <p className="text-lg font-medium text-white mt-1">
-              {currentCampaign.configuration?.baseDailyTotal}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-muted">Randomization Intensity</p>
-            <p className="text-lg font-medium text-white mt-1">
-              {currentCampaign.configuration?.randomizationIntensity}
-            </p>
-          </div>
-        </div>
-        
-        {/* Sender Emails - Read Only */}
-        <div className="mt-6">
-          <div className="mb-3">
-            <h3 className="text-lg font-semibold text-white">Sender Emails</h3>
-            <p className="text-sm text-muted mt-1">
-              To add or modify sender emails, use the "Edit Campaign" button above.
-            </p>
-          </div>
-          
-          {currentCampaign.configuration?.senderEmails && currentCampaign.configuration.senderEmails.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {currentCampaign.configuration.senderEmails.map((sender, index) => (
-                <div key={index} className={`p-3 rounded-lg border ${sender.isActive ? 'bg-white/5 border-white/10' : 'bg-white/5 border-white/10'}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <p className="font-medium text-white">{sender.email}</p>
-                      <p className="text-sm text-muted">Domain: {sender.domain}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${sender.isActive ? 'bg-white/10 text-white' : 'bg-white/5 text-white'}`}>
-                        {sender.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted">
-              <p>No sender emails configured</p>
-              <p className="text-sm">System will use generated sender emails (sender1@domain.com, etc.)</p>
+          {realtimeStats && (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="card card-hover">
+                <p className="text-sm font-medium text-muted mb-2">Total Sent</p>
+                <p className="text-3xl font-bold text-foreground">
+                  {currentCampaign.progress?.totalSent || 0}
+                </p>
+                <p className="text-xs text-muted mt-1">All time</p>
+              </div>
+              <div className="card card-hover">
+                <p className="text-sm font-medium text-muted mb-2">Delivered</p>
+                <p className="text-3xl font-bold text-green-500">
+                  {currentCampaign.progress?.totalDelivered || 0}
+                </p>
+                <p className="text-xs text-muted mt-1">
+                  {currentCampaign.progress?.totalSent > 0
+                    ? `${((currentCampaign.progress.totalDelivered / currentCampaign.progress.totalSent) * 100).toFixed(1)}%`
+                    : '0%'}
+                </p>
+              </div>
+              <div className="card card-hover">
+                <p className="text-sm font-medium text-muted mb-2">Opened</p>
+                <p className="text-3xl font-bold text-blue-500">
+                  {currentCampaign.progress?.totalOpened || 0}
+                </p>
+                <p className="text-xs text-muted mt-1">
+                  {currentCampaign.progress?.totalDelivered > 0
+                    ? `${((currentCampaign.progress.totalOpened / currentCampaign.progress.totalDelivered) * 100).toFixed(1)}%`
+                    : '0%'}
+                </p>
+              </div>
+              <div className="card card-hover">
+                <p className="text-sm font-medium text-muted mb-2">Clicked</p>
+                <p className="text-3xl font-bold text-purple-500">
+                  {currentCampaign.progress?.totalClicked || 0}
+                </p>
+                <p className="text-xs text-muted mt-1">
+                  {currentCampaign.progress?.totalDelivered > 0
+                    ? `${((currentCampaign.progress.totalClicked / currentCampaign.progress.totalDelivered) * 100).toFixed(1)}%`
+                    : '0%'}
+                </p>
+              </div>
+              <div className="card card-hover">
+                <p className="text-sm font-medium text-muted mb-2">Queued</p>
+                <p className="text-3xl font-bold text-yellow-500">
+                  {realtimeStats.emailStats?.queued || 0}
+                </p>
+                <p className="text-xs text-muted mt-1">In queue</p>
+              </div>
+              <div className="card card-hover">
+                <p className="text-sm font-medium text-muted mb-2">Bounced</p>
+                <p className="text-3xl font-bold text-orange-500">
+                  {currentCampaign.progress?.totalBounced || 0}
+                </p>
+                <p className="text-xs text-muted mt-1">
+                  {currentCampaign.progress?.totalSent > 0
+                    ? `${((currentCampaign.progress.totalBounced / currentCampaign.progress.totalSent) * 100).toFixed(1)}%`
+                    : '0%'}
+                </p>
+              </div>
+              <div className="card card-hover">
+                <p className="text-sm font-medium text-muted mb-2">Failed</p>
+                <p className="text-3xl font-bold text-red-600">
+                  {currentCampaign.progress?.totalFailed || 0}
+                </p>
+                <p className="text-xs text-muted mt-1">
+                  {currentCampaign.progress?.totalSent > 0
+                    ? `${((currentCampaign.progress.totalFailed / currentCampaign.progress.totalSent) * 100).toFixed(1)}%`
+                    : '0%'}
+                </p>
+              </div>
+              <div className="card card-hover">
+                <p className="text-sm font-medium text-muted mb-2">Current Day</p>
+                <p className="text-3xl font-bold text-accent">
+                  {currentCampaign.progress?.currentDay || 1}
+                </p>
+                <p className="text-xs text-muted mt-1">Warmup day</p>
+              </div>
             </div>
           )}
-        </div>
 
-      </div>
+          {/* Campaign Configuration */}
+          <div className="card">
+            <h2 className="text-xl font-semibold text-foreground mb-6">Configuration</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <p className="text-sm font-medium text-muted mb-2">Domains</p>
+                <p className="text-lg font-medium text-foreground">
+                  {currentCampaign.configuration?.domains?.join(', ')}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted">Emails Per Domain</p>
+                <p className="text-lg font-medium text-white mt-1">
+                  {currentCampaign.configuration?.senderEmails && currentCampaign.configuration.senderEmails.length > 0
+                    ? Math.max(...Object.values(
+                      currentCampaign.configuration.senderEmails
+                        .filter(s => s.isActive)
+                        .reduce((acc, sender) => {
+                          acc[sender.domain] = (acc[sender.domain] || 0) + 1;
+                          return acc;
+                        }, {})
+                    ), 1)
+                    : '5 (default)'
+                  }
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted">Base Daily Total</p>
+                <p className="text-lg font-medium text-white mt-1">
+                  {currentCampaign.configuration?.baseDailyTotal}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted">Randomization Intensity</p>
+                <p className="text-lg font-medium text-white mt-1">
+                  {currentCampaign.configuration?.randomizationIntensity}
+                </p>
+              </div>
+            </div>
+
+            {/* Sender Emails - Read Only */}
+            <div className="mt-6">
+              <div className="mb-3">
+                <h3 className="text-lg font-semibold text-white">Sender Emails</h3>
+                <p className="text-sm text-muted mt-1">
+                  To add or modify sender emails, use the "Edit Campaign" button above.
+                </p>
+              </div>
+
+              {currentCampaign.configuration?.senderEmails && currentCampaign.configuration.senderEmails.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {currentCampaign.configuration.senderEmails.map((sender, index) => (
+                    <div key={index} className={`p-3 rounded-lg border ${sender.isActive ? 'bg-white/5 border-white/10' : 'bg-white/5 border-white/10'}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium text-white">{sender.email}</p>
+                          <p className="text-sm text-muted">Domain: {sender.domain}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${sender.isActive ? 'bg-white/10 text-white' : 'bg-white/5 text-white'}`}>
+                            {sender.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted">
+                  <p>No sender emails configured</p>
+                  <p className="text-sm">System will use generated sender emails (sender1@domain.com, etc.)</p>
+                </div>
+              )}
+            </div>
+
+          </div>
 
         </>
       )}
