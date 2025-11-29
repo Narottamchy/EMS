@@ -103,6 +103,24 @@ async function processSESEvent(event) {
         // Find the SentEmail BEFORE updating it to check if this is a first-time event
         const sentEmailBeforeUpdate = await SentEmail.findOne({ messageId: mail.messageId });
 
+        if (!sentEmailBeforeUpdate) {
+            logger.warn(`⚠️ SentEmail not found for messageId: ${mail.messageId}`);
+            return;
+        }
+
+        // Log detailed event information
+        const isFirstOpen = eventType === 'Open' && sentEmailBeforeUpdate.tracking.openCount === 0;
+        const isFirstClick = eventType === 'Click' && sentEmailBeforeUpdate.tracking.clickCount === 0;
+
+        logger.info(`📧 ${eventType} event for ${sentEmailBeforeUpdate.recipient.email}`, {
+            campaignId,
+            messageId: mail.messageId,
+            recipient: sentEmailBeforeUpdate.recipient.email,
+            eventType,
+            isFirstTime: isFirstOpen || isFirstClick || eventType === 'Delivery' || eventType === 'Bounce',
+            currentOpenCount: sentEmailBeforeUpdate.tracking.openCount,
+            currentClickCount: sentEmailBeforeUpdate.tracking.clickCount
+        });
         // 2. Update SentEmail status
         // Construct the update query
         const updateQuery = {
