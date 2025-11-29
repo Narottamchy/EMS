@@ -798,7 +798,8 @@ exports.getTodaysPlan = async (req, res) => {
         todaysPlan: todaysData.todaysPlan,
         emailListStats: todaysData.emailListStats,
         totalRecipients: todaysData.todaysScheduled,
-        todaysQueued: todaysData.todaysQueued
+        todaysQueued: todaysData.todaysQueued,
+        todaysSent: todaysData.todaysSent,
       }
     });
 
