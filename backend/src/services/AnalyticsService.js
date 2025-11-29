@@ -277,23 +277,37 @@ class AnalyticsService {
       const campaign = await Campaign.findById(campaignId).select('progress.currentDay');
       const currentDay = campaign?.progress?.currentDay || 1;
 
-      const [sentEmails, queueStats] = await Promise.all([
-        SentEmail.aggregate([
-          {
-            $match: {
-              campaign: campaignObjectId,
-              'metadata.day': currentDay // Only get stats for the current day
-            }
-          },
-          {
-            $group: {
-              _id: '$status',
-              count: { $sum: 1 }
-            }
+      // Get status counts (for sent, delivered, failed, bounced)
+      const statusCounts = await SentEmail.aggregate([
+        {
+          $match: {
+            campaign: campaignObjectId,
+            'metadata.day': currentDay
           }
-        ]),
-        // Get queue stats from QueueService if needed
-        Promise.resolve(null)
+        },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 }
+          }
+        }
+      ]);
+
+      // Get engagement counts (opens and clicks from tracking fields)
+      const engagementCounts = await SentEmail.aggregate([
+        {
+          $match: {
+            campaign: campaignObjectId,
+            'metadata.day': currentDay
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalOpens: { $sum: '$tracking.openCount' },
+            totalClicks: { $sum: '$tracking.clickCount' }
+          }
+        }
       ]);
 
       const stats = {
@@ -301,25 +315,33 @@ class AnalyticsService {
         sent: 0,
         delivered: 0,
         failed: 0,
-        bounced: 0
+        bounced: 0,
+        opened: 0,
+        clicked: 0
       };
 
-      sentEmails.forEach(item => {
-        // Normalize status names (handle legacy/raw SES statuses)
+      // Process status counts
+      statusCounts.forEach(item => {
         let status = item._id;
+        // Normalize status names
         if (status === 'send') status = 'sent';
         if (status === 'delivery') status = 'delivered';
         if (status === 'open') status = 'opened';
         if (status === 'click') status = 'clicked';
         if (status === 'bounce') status = 'bounced';
 
-        // Add to existing count or create new
         if (stats.hasOwnProperty(status)) {
           stats[status] += item.count;
         } else {
           stats[status] = item.count;
         }
       });
+
+      // Add engagement counts
+      if (engagementCounts.length > 0) {
+        stats.opened = engagementCounts[0].totalOpens || 0;
+        stats.clicked = engagementCounts[0].totalClicks || 0;
+      }
 
       return stats;
 
