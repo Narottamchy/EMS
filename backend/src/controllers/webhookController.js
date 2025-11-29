@@ -100,6 +100,9 @@ async function processSESEvent(event) {
 
         await campaignEvent.save();
 
+        // Find the SentEmail BEFORE updating it to check if this is a first-time event
+        const sentEmailBeforeUpdate = await SentEmail.findOne({ messageId: mail.messageId });
+
         // 2. Update SentEmail status
         // Construct the update query
         const updateQuery = {
@@ -128,7 +131,7 @@ async function processSESEvent(event) {
             updateQuery
         );
 
-        // 3. Update Campaign stats
+        // 3. Update Campaign stats (only increment for UNIQUE events)
         const campaignUpdate = {};
 
         switch (eventType) {
@@ -139,10 +142,16 @@ async function processSESEvent(event) {
                 campaignUpdate.$inc = { 'progress.totalBounced': 1 };
                 break;
             case 'Open':
-                campaignUpdate.$inc = { 'progress.totalOpened': 1 };
+                // Only increment if this is the first open
+                if (sentEmailBeforeUpdate && sentEmailBeforeUpdate.tracking.openCount === 0) {
+                    campaignUpdate.$inc = { 'progress.totalOpened': 1 };
+                }
                 break;
             case 'Click':
-                campaignUpdate.$inc = { 'progress.totalClicked': 1 };
+                // Only increment if this is the first click
+                if (sentEmailBeforeUpdate && sentEmailBeforeUpdate.tracking.clickCount === 0) {
+                    campaignUpdate.$inc = { 'progress.totalClicked': 1 };
+                }
                 break;
             case 'Complaint':
                 // Maybe track complaints? Campaign model doesn't have totalComplaints explicitly but has totalUnsubscribed?
@@ -176,17 +185,39 @@ async function processSESEvent(event) {
                     );
                     break;
                 case 'Open':
-                    // Record open event in DailyAnalytics
+                    // Check if this is the first open for this email
+                    const isFirstOpen = sentEmail.tracking.openCount === 1;
+
+                    const openUpdate = {
+                        $inc: { 'summary.totalOpened': 1 }
+                    };
+
+                    // If first open, also increment unique opens
+                    if (isFirstOpen) {
+                        openUpdate.$inc['summary.uniqueOpens'] = 1;
+                    }
+
                     await DailyAnalytics.findOneAndUpdate(
                         { campaign: campaignId, day: day },
-                        { $inc: { 'summary.totalOpened': 1 } }
+                        openUpdate
                     );
                     break;
                 case 'Click':
-                    // Record click event in DailyAnalytics
+                    // Check if this is the first click for this email
+                    const isFirstClick = sentEmail.tracking.clickCount === 1;
+
+                    const clickUpdate = {
+                        $inc: { 'summary.totalClicked': 1 }
+                    };
+
+                    // If first click, also increment unique clicks
+                    if (isFirstClick) {
+                        clickUpdate.$inc['summary.uniqueClicks'] = 1;
+                    }
+
                     await DailyAnalytics.findOneAndUpdate(
                         { campaign: campaignId, day: day },
-                        { $inc: { 'summary.totalClicked': 1 } }
+                        clickUpdate
                     );
                     break;
             }
