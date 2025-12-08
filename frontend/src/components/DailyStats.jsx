@@ -189,6 +189,15 @@ const DailyStats = ({ campaignId }) => {
           </p>
         </div>
         <div className="card card-hover">
+          <p className="text-sm font-medium text-muted mb-2">CTOR</p>
+          <p className="text-3xl font-bold text-indigo-600">
+            {summary.totalOpened > 0
+              ? `${((summary.totalClicked / summary.totalOpened) * 100).toFixed(1)}%`
+              : '0%'}
+          </p>
+          <p className="text-xs text-muted mt-1">Click-to-Open Ratio</p>
+        </div>
+        <div className="card card-hover">
           <p className="text-sm font-medium text-muted mb-2">Total Opens</p>
           <p className="text-3xl font-bold text-foreground">{summary.totalOpened?.toLocaleString() || 0}</p>
           <p className="text-xs text-muted mt-1">All open events</p>
@@ -242,6 +251,14 @@ const DailyStats = ({ campaignId }) => {
                       <div className="text-right">
                         <p className="text-sm text-muted">Clicked</p>
                         <p className="font-semibold text-purple-600">{day.stats.totalClicked?.toLocaleString() || 0}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-muted">CTOR</p>
+                        <p className="font-semibold text-indigo-600">
+                          {day.stats.totalOpened > 0
+                            ? `${((day.stats.totalClicked / day.stats.totalOpened) * 100).toFixed(1)}%`
+                            : '0%'}
+                        </p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm text-muted">Bounced</p>

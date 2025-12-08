@@ -172,8 +172,8 @@ const CampaignDetail = () => {
           <button
             onClick={() => setActiveTab('overview')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'overview'
-                ? 'border-white/20 text-white'
-                : 'border-transparent text-muted hover:text-muted hover:border-white/10'
+              ? 'border-white/20 text-white'
+              : 'border-transparent text-muted hover:text-muted hover:border-white/10'
               }`}
           >
             Overview
@@ -181,8 +181,8 @@ const CampaignDetail = () => {
           <button
             onClick={() => setActiveTab('execution')}
             className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${activeTab === 'execution'
-                ? 'border-white/20 text-white'
-                : 'border-transparent text-muted hover:text-muted hover:border-white/10'
+              ? 'border-white/20 text-white'
+              : 'border-transparent text-muted hover:text-muted hover:border-white/10'
               }`}
           >
             <Play className="w-4 h-4" />
@@ -192,8 +192,8 @@ const CampaignDetail = () => {
           <button
             onClick={() => setActiveTab('today')}
             className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${activeTab === 'today'
-                ? 'border-white/20 text-white'
-                : 'border-transparent text-muted hover:text-muted hover:border-white/10'
+              ? 'border-white/20 text-white'
+              : 'border-transparent text-muted hover:text-muted hover:border-white/10'
               }`}
           >
             <Clock className="w-4 h-4" />
@@ -201,9 +201,9 @@ const CampaignDetail = () => {
           </button>
           <button
             onClick={() => setActiveTab('analytics')}
-             className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${activeTab === 'analytics'
-                ? 'border-white/20 text-white'
-                : 'border-transparent text-muted hover:text-muted hover:border-white/10'
+            className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${activeTab === 'analytics'
+              ? 'border-white/20 text-white'
+              : 'border-transparent text-muted hover:text-muted hover:border-white/10'
               }`}
           >
             <BarChart3 className="w-4 h-4" />
@@ -212,21 +212,21 @@ const CampaignDetail = () => {
           <button
             onClick={() => setActiveTab('daily-stats')}
             className={`py-2 px-1 border-b-2 font-medium text-sm flex text-black items-center gap-2 ${activeTab === 'daily-stats'
-                ? 'border-transparent'
-                : 'border-transparent'
+              ? 'border-transparent'
+              : 'border-transparent'
               }`}
           >
             <BarChart3 className="w-4 h-4" />
             Daily Stats
           </button>
-          
+
         </nav>
       </div>
 
       {/* Tab Content */}
       {activeTab === 'execution' && (
         <div className="mt-6">
-          <CurrentExecution campaignId={id} realtimeStats={realtimeStats}/>
+          <CurrentExecution campaignId={id} realtimeStats={realtimeStats} />
         </div>
       )}
 
@@ -274,6 +274,15 @@ const CampaignDetail = () => {
                     ? `${((currentCampaign.progress.totalClicked / currentCampaign.progress.totalDelivered) * 100).toFixed(1)}%`
                     : '0%'}
                 </p>
+              </div>
+              <div className="card card-hover">
+                <p className="text-sm font-medium text-muted mb-2">CTOR</p>
+                <p className="text-3xl font-bold text-indigo-500">
+                  {currentCampaign.progress?.totalOpened > 0
+                    ? `${((currentCampaign.progress.totalClicked / currentCampaign.progress.totalOpened) * 100).toFixed(1)}%`
+                    : '0%'}
+                </p>
+                <p className="text-xs text-muted mt-1">Click-to-Open Ratio</p>
               </div>
               <div className="card card-hover">
                 <p className="text-sm font-medium text-muted mb-2">Queued</p>
