@@ -259,12 +259,14 @@ class CampaignOrchestrator {
     logger.info('📬 Starting email scheduling', {
       campaignId: campaign._id,
       totalRecipients: recipients.length,
-      dailyPlan: dailyPlan.totalEmails
+      dailyPlan: dailyPlan.totalEmails,
+      warmupMode: campaign.configuration.warmupMode?.enabled
     });
 
     const emailJobs = [];
     const senderEmails = this.generateSenderEmails(campaign.configuration);
     let recipientIndex = 0;
+    const isWarmupMode = campaign.configuration.warmupMode?.enabled;
 
     logger.info('📧 Generated sender emails', {
       count: senderEmails.length,
@@ -283,7 +285,8 @@ class CampaignOrchestrator {
     logger.info('⏰ Scheduling window', {
       now: now.toISOString(),
       endOfUTCDay: endOfUTCDay.toISOString(),
-      currentUTCHour: now.getUTCHours()
+      currentUTCHour: now.getUTCHours(),
+      warmupMode: isWarmupMode
     });
 
     for (const domainPlan of dailyPlan.domains) {
@@ -327,9 +330,18 @@ class CampaignOrchestrator {
 
               scheduledTime.setUTCSeconds(secondsOffset);
 
-              // If scheduled time is in the past or beyond current UTC day, skip
-              if (scheduledTime <= now) {
-                // Skip past times
+              // In warmup mode, if scheduled time is in the past, adjust to schedule immediately
+              // This ensures all emails get scheduled even when day transition happens after midnight
+              if (isWarmupMode && scheduledTime <= now) {
+                // Schedule immediately with a small delay to avoid overwhelming the queue
+                scheduledTime = new Date(now.getTime() + (recipientIndex * 100)); // 100ms spacing
+                logger.debug('🔥 Warmup mode: Adjusted past time to immediate scheduling', {
+                  originalHour: hourPlan.hour,
+                  originalMinute: minute,
+                  newScheduledTime: scheduledTime.toISOString()
+                });
+              } else if (!isWarmupMode && scheduledTime <= now) {
+                // Normal mode: Skip past times
                 continue;
               }
 
