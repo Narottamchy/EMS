@@ -154,13 +154,20 @@ class QueueService {
       if (scheduledFor) {
         const scheduledTime = new Date(scheduledFor);
         const now = new Date();
-        const sameDay = scheduledTime.toDateString() === now.toDateString();
+
+        // Use UTC day comparison to match campaign day transition logic
+        const scheduledUTCDay = scheduledTime.toISOString().split('T')[0];
+        const currentUTCDay = now.toISOString().split('T')[0];
+        const sameUTCDay = scheduledUTCDay === currentUTCDay;
+
         const ageMs = now - scheduledTime;
-        // Consider jobs stale if not same calendar day or older than 2 hours
-        if (!sameDay || ageMs > 2 * 60 * 60 * 1000) {
+        // Consider jobs stale if not same UTC day or older than 2 hours
+        if (!sameUTCDay || ageMs > 2 * 60 * 60 * 1000) {
           logger.warn('⚠️  Skipping stale email job', {
             jobId: job.id,
             scheduledFor,
+            scheduledUTCDay,
+            currentUTCDay,
             now: now.toISOString(),
             ageMinutes: Math.round(ageMs / 60000)
           });
