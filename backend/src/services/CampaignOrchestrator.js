@@ -330,15 +330,22 @@ class CampaignOrchestrator {
 
               scheduledTime.setUTCSeconds(secondsOffset);
 
-              // In warmup mode, if scheduled time is in the past, adjust to schedule immediately
-              // This ensures all emails get scheduled even when day transition happens after midnight
+              // In warmup mode, if scheduled time is in the past, redistribute across remaining day
+              // This prevents email bursts when starting mid-day
               if (isWarmupMode && scheduledTime <= now) {
-                // Schedule immediately with a small delay to avoid overwhelming the queue
-                scheduledTime = new Date(now.getTime() + (recipientIndex * 100)); // 100ms spacing
-                logger.debug('🔥 Warmup mode: Adjusted past time to immediate scheduling', {
+                // Calculate remaining time in the day
+                const remainingMs = endOfUTCDay - now;
+
+                // Spread past-hour emails evenly across remaining time
+                // Use recipientIndex to ensure even distribution
+                const spreadDelay = Math.floor((recipientIndex * remainingMs) / recipients.length);
+                scheduledTime = new Date(now.getTime() + spreadDelay);
+
+                logger.debug('🔥 Warmup mode: Redistributing past-hour email across remaining day', {
                   originalHour: hourPlan.hour,
                   originalMinute: minute,
-                  newScheduledTime: scheduledTime.toISOString()
+                  newScheduledTime: scheduledTime.toISOString(),
+                  spreadDelayMinutes: Math.round(spreadDelay / 60000)
                 });
               } else if (!isWarmupMode && scheduledTime <= now) {
                 // Normal mode: Skip past times
