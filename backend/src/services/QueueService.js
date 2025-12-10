@@ -127,27 +127,42 @@ class QueueService {
     const { campaignId, recipient, sender, templateName, metadata, templateData = {}, scheduledFor } = job.data;
 
     try {
-      const existingSent = await SentEmail.findOne({
-        campaign: campaignId,
-        'recipient.email': recipient.email
-      });
+      // Get campaign to check warmup mode
+      const campaignDoc = await Campaign.findById(campaignId).select('status pausedAt configuration');
+
+      if (!campaignDoc || campaignDoc.status !== 'running') {
+        logger.warn('⚠️  Campaign not running, skipping email', {
+          campaignId,
+          status: campaignDoc?.status
+        });
+        return { skipped: true, reason: 'campaign_not_running' };
+      }
+
+      // Check for duplicates based on warmup mode
+      const isWarmupMode = campaignDoc.configuration?.warmupMode?.enabled;
+
+      const duplicateQuery = isWarmupMode
+        ? {
+          campaign: campaignId,
+          'recipient.email': recipient.email,
+          'metadata.day': metadata.day  // In warmup mode, check same day only
+        }
+        : {
+          campaign: campaignId,
+          'recipient.email': recipient.email  // Normal mode, check campaign-wide
+        };
+
+      const existingSent = await SentEmail.findOne(duplicateQuery);
 
       if (existingSent) {
         logger.warn('⚠️  Email already sent, skipping', {
           recipient: recipient.email,
-          campaign: campaignId
+          campaign: campaignId,
+          day: metadata.day,
+          warmupMode: isWarmupMode,
+          existingSentDay: existingSent.metadata?.day
         });
         return { skipped: true, reason: 'duplicate' };
-      }
-
-      // Safety: skip if campaign is not running
-      const campaignDoc = await Campaign.findById(campaignId).select('status pausedAt configuration.enableListUnsubscribe configuration.unsubscribeUrl');
-      if (!campaignDoc || campaignDoc.status !== 'running') {
-        logger.warn('⚠️  Skipping job because campaign is not running', {
-          campaign: campaignId,
-          state: campaignDoc ? campaignDoc.status : 'not_found'
-        });
-        return { skipped: true, reason: 'campaign_not_running' };
       }
 
       // Safety: skip if job is stale (scheduled for a past day or too old)

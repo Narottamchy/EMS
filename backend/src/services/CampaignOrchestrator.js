@@ -1172,10 +1172,10 @@ class CampaignOrchestrator {
       // Check if warmup mode is enabled
       const isWarmupMode = campaign.configuration?.warmupMode?.enabled;
 
-      // Get emails sent based on warmup mode
+      // Get emails sent based on warmup mode - for warmup, only count current day
       const sentEmailQuery = isWarmupMode
-        ? { campaign: campaignId }  // Warmup mode: only this campaign
-        : {};                        // Normal mode: all campaigns
+        ? { campaign: campaignId, 'metadata.day': currentDay }  // Warmup mode: only current day
+        : { campaign: campaignId };                              // Normal mode: all days for this campaign
 
       const sentEmails = await SentEmail.find(sentEmailQuery).select('recipient.email');
       const sentEmailSet = new Set(sentEmails.map(e => e.recipient.email.toLowerCase().trim()));
@@ -1188,7 +1188,7 @@ class CampaignOrchestrator {
 
       // Calculate statistics based on warmup mode
       const totalEmails = campaignEmailList.length;
-      const alreadySent = sentEmailSet.size;
+      const alreadySent = sentEmailSet.size;  // For warmup: only current day, Normal: all days
       const unsubscribed = unsubscribedInCampaignList.length;
       const available = Math.max(0, totalEmails - alreadySent - unsubscribed);
 
